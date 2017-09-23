@@ -1,0 +1,4 @@
+requestDirection,requestOperation[partnerLinkScopeName::pl,pl:pt,op,cs+],responseOperation[partnerLinkScopeName::pl,pl:pt,op,cs+]+
+in,[BusinessTravelProcess::client,trv:TravelApprovalPT,TravelApproval],[BusinessTravelProcess::client,trv:ClientCallbackPT,ClientCallback]
+out,[BusinessTravelProcess::AmericanAirlines,aln:FlightAvailabilityPT,FlightAvailability],[BusinessTravelProcess::AmericanAirlines,aln:FlightCallbackPT,FlightTicketCallback]
+out,[BusinessTravelProcess::DeltaAirlines,aln:FlightAvailabilityPT,FlightAvailability],[BusinessTravelProcess::DeltaAirlines,aln:FlightCallbackPT,FlightTicketCallback]

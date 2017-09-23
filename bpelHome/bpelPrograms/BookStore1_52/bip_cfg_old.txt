@@ -1,0 +1,4 @@
+requestDirection,requestOperation[partnerLinkScopeName::pl,pl:pt,op,cs+],responseOperation[partnerLinkScopeName::pl,pl:pt,op,cs+]+
+in,[BookStore1::BookStore,bst:BookPurchasePT,BookPriceQuery],[BookStore1::BookStore,bst:BookPurchaseCallbackPT,BookPurchaseCallback]
+in,[BookStore1::BookStore,bst:BookPurchasePT,BookPurchase],[BookStore1::BookStore,bst:BookPurchaseCallbackPT,BookPurchaseCallback]
+in,[BookStore1::BookStore,bst:BookPurchasePT,CancelBookPurchase],[BookStore1::BookStore,bst:BookPurchaseCallbackPT,BookPurchaseCallback]

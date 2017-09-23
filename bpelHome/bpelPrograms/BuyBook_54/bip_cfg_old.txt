@@ -1,0 +1,6 @@
+requestDirection,requestOperation[partnerLinkScopeName::pl,pl:pt,op,cs+],responseOperation[partnerLinkScopeName::pl,pl:pt,op,cs+]+
+in,[BuyBook::Client,buy:BuyBookPT,BuyBook],[BuyBook::Client,buy:ClientCallbackPT,ClientCallbackFault],[BuyBook::Client,buy:ClientCallbackPT,ClientCallback]
+out,[BuyBook::BookStore1,bst:BookPurchasePT,BookPriceQuery],[BuyBook::BookStore1,bst:BookPurchaseCallbackPT,BookPurchaseCallback]
+out,[BuyBook::BookStore2,bst:BookPurchasePT,BookPriceQuery],[BuyBook::BookStore2,bst:BookPurchaseCallbackPT,BookPurchaseCallback]
+out,[BuyBook::BookStore1,bst:BookPurchasePT,BookPurchase],[BuyBook::BookStore1,bst:BookPurchaseCallbackPT,BookPurchaseCallback]
+out,[BuyBook::BookStore2,bst:BookPurchasePT,BookPurchase],[BuyBook::BookStore2,bst:BookPurchaseCallbackPT,BookPurchaseCallback]

@@ -1,0 +1,103 @@
+﻿<?xml version="1.0" encoding="utf-8" ?> 
+<definitions xmlns:http="http://schemas.xmlsoap.org/wsdl/http/" 
+             xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" 
+             xmlns:xs="http://www.w3.org/2001/XMLSchema" 
+             xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/" 
+             xmlns:tns="http://oracle.com/service/bookstore/" 
+             targetNamespace="http://oracle.com/service/bookstore/" 
+             xmlns:bkr="http://oracle.com/service/bookrating/"
+             xmlns="http://schemas.xmlsoap.org/wsdl/"
+             xmlns:plnk="http://schemas.xmlsoap.org/ws/2003/05/partner-link/" >
+
+
+<import namespace="http://oracle.com/service/bookrating/" 
+        location="http://localhost:9700/orabpel/default/BookRating/BookRating?wsdl"/>
+
+
+<types>
+
+  <xs:schema elementFormDefault="qualified" attributeFormDefault="qualified" 
+             targetNamespace="http://oracle.com/service/bookstore/">
+
+    <xs:complexType name="PaymentType">
+      <xs:sequence>
+        <xs:element name="CreditCardNo" type="xs:string" /> 
+        <xs:element name="ValidThru" type="xs:date" /> 
+        <xs:element name="Name" type="xs:string" /> 
+      </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="BookConfirmationType">
+      <xs:sequence>
+        <xs:element name="Price" type="xs:float" /> 
+        <xs:element name="Description" type="xs:string" /> 
+        <xs:element name="Approved" type="xs:boolean" /> 
+      </xs:sequence>
+    </xs:complexType>
+    
+  </xs:schema>
+</types>
+
+<message name="BookRequestMessage">
+  <part name="book" type="bkr:BookDscType" /> 
+  <part name="quantity" type="xs:int" /> 
+</message>
+
+<message name="BookPurchaseMessage">
+  <part name="book" type="bkr:BookDscType" /> 
+  <part name="quantity" type="xs:int" /> 
+  <part name="payment" type="tns:PaymentType" />
+</message>
+
+<message name="BookResponseMessage">
+  <part name="confirmation" type="tns:BookConfirmationType" />
+</message>
+
+<message name="FaultMessage">
+  <part name="error" type="xs:string" />
+</message>
+
+<portType name="BookPurchasePT">
+  <operation name="BookPriceQuery">
+    <input message="tns:BookRequestMessage" /> 
+  </operation>
+  
+  <operation name="BookPurchase">
+    <input message="tns:BookPurchaseMessage" /> 
+  </operation>
+  
+  <operation name="CancelBookPurchase">
+    <input message="tns:BookPurchaseMessage" /> 
+  </operation>
+  
+</portType>
+
+<!-- Implemented by the BPEL process -->
+<portType name="BookPurchaseCallbackPT">
+  <operation name="BookPurchaseCallback">
+    <input message="tns:BookResponseMessage" /> 
+  </operation>
+
+  <operation name="BookNotAvaliable">
+    <input message="tns:FaultMessage" /> 
+  </operation>
+  <operation name="OutOfStock">
+    <input message="tns:FaultMessage" /> 
+  </operation>
+  <operation name="InvalidCreditCard">
+    <input message="tns:FaultMessage" /> 
+  </operation>
+
+</portType>
+
+<!-- Partner link type -->
+<plnk:partnerLinkType name="BookStoreLT">
+  <plnk:role name="BookStoreService">
+    <plnk:portType name="tns:BookPurchasePT" />
+  </plnk:role>
+  <plnk:role name="BookStoreCustomer">
+    <plnk:portType name="tns:BookPurchaseCallbackPT" />
+  </plnk:role>
+</plnk:partnerLinkType>
+
+</definitions>

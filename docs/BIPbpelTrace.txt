@@ -1,0 +1,24 @@
+0:ROOT.PR.OBS.faultInjection
+1:ROOT.start: PR.start()
+2:ROOT.PR.OBS.recovery
+3:ROOT.PR.OBS.faultInjection
+4:ROOT.PR.OBS.recovery
+5:ROOT.PR.PR.PR.check_receive_11_in: DHS.check_receive_11(msg1=0;) SC9CMA.check_receive_11(msg1=0;msg2=0;msg3=0;)
+6:ROOT.rcvMsg_receive_111: PR.rcvMsg_receive_11(msg1=0;)
+7:ROOT.PR.PR.PR.SC9CMA.SQ21C1.fault_invalidVariables
+8:ROOT.PR.PR.PR.fault_handle1: SC9CMA.fault(msg1=14;) SC9CFH.start_handle(msg1=0;) SCNTR.fault_i()
+9:ROOT.PR.PR.PR.term_in: SCNTR.term2() SC9CMA.term() SC9CEH.term() SC9CCH.disable() SC9CTH.disable()
+10:ROOT.PR.PR.PR.SC9CFH.disable_in: FHCTRL.disable_in()
+11:ROOT.PR.OBS.faultInjection
+12:ROOT.PR.PR.PR.startFH: SCNTR.startFH() MAEHcompl.xpr() SC9CFH.start()
+13:ROOT.PR.OBS.recovery
+14:ROOT.PR.OBS.faultInjection
+15:ROOT.PR.OBS.recovery
+16:ROOT.PR.OBS.faultInjection
+17:ROOT.PR.OBS.recovery
+19:ROOT.PR.OBS.faultInjection
+20:ROOT.PR.PR.PR.fault1: SC9CFH.fault(msg1=14;) SCNTR.fault()
+22:ROOT.PR.PR.PR.term3: SCNTR.term3()
+23:ROOT.PR.OBS.recovery
+24:ROOT.PR.PR.PR.FHfin: SCNTR.FHfin() SC9CFH.fin()
+25:ROOT.fin: PR.fin()

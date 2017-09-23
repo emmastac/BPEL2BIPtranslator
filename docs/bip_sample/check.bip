@@ -1,0 +1,85 @@
+@cpp(include="stdio.h")
+package check
+
+const data int COUNT_MAX = 2
+const data int DEBUG = 0
+
+const data int OBS_TERM = 1
+
+//extern data type bool
+
+
+extern function updateVar(int,int)
+extern function rdvar_down_1( int ,int )
+extern function rdvar_down_2( int ,int, int, int )
+extern function printf(string)
+extern function printf(string, int)
+extern function printf(string, int, int)
+extern function printf(string, int, int, int)
+extern function printf(string, int, int, int, int)
+
+
+port type e0b0port()
+port type e1b0port(int msg1)
+port type e2b0port(int msg1,int msg2)
+
+connector type SingletonD(e0b0port p)
+	export port e0b0port xpr()
+	define p
+end
+
+connector type Singleton(e0b0port p)
+	define p
+end
+
+connector type BRDCAST2(e0b0port p1, e0b0port p2)
+	define p1' p2
+end
+
+connector type RDV2(e0b0port p1, e0b0port p2)
+	define p1 p2
+end
+
+atom type Atom1()
+	export port e0b0port AtoB(), CtoB()
+	port e0b0port  BtoA(), AtoC()
+	
+	data int c, d
+	place A, B, C
+	 
+	initial to A do { printf("name:Atom1,place:A,c:%d,d:%d", c, d); }
+	on AtoB from A to B do{ c = c+1; printf("name:Atom1,place:B,c:%d,d:%d", c, d); }
+	on AtoC from A to C do{ d = d+1; printf("name:Atom1,place:C,c:%d,d:%d", c, d); }
+	on CtoB from C to B do{ d = d+1; printf("name:Atom1,place:B,c:%d,d:%d", c, d); }
+	on BtoA from B to A do{ c=0; d=0; printf("name:Atom1,place:A,c:%d,d:%d", c, d);  }
+end
+
+atom type Atom2()
+	export port e0b0port AtoB(), CtoB()
+	port e0b0port  BtoA(), AtoC()
+	
+	data int c, d
+	place A, B, C
+	 
+	initial to A do { printf("[name:Atom2,place:A,c:%d,d:%d]", c, d); }
+	on AtoB from A to B do{ c = c+1; printf("[name:Atom2,place:B,c:%d,d:%d],", c, d); }
+	on AtoC from A to C do{ d = d+1; printf("[name:Atom2,place:C,c:%d,d:%d]", c, d); }
+	on CtoB from C to B do{ d = d+1; printf("[name:Atom2,place:B,c:%d,d:%d]", c, d); }
+	on BtoA from B to A do{ c=0; d=0; printf("[name:Atom2,place:A,c:%d,d:%d]", c, d); }
+end
+
+
+
+compound type comp()
+
+	component Atom1 A1()
+	component Atom2 A2()
+
+	connector RDV2 bothAB(A1.AtoB,A2.AtoB)
+	connector BRDCAST2 brdcastCB(A1.CtoB, A2.CtoB)
+	
+	
+end
+
+
+end

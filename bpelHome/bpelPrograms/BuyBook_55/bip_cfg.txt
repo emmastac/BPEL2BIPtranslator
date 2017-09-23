@@ -1,0 +1,6 @@
+requestDirection,requestOperation[partnerLinkScopeName::pl,pl:pt,op,cs+],responseOperation[partnerLinkScopeName::pl,pl:pt,op,cs+]+
+in,[receiveClient],[invokeClientFault1],[invokeClientFault2],[invokeClientFinal]
+out,[invBS1Price],[rcvBS1Price]
+out,[invBS2Price],[rcvBS2Price]
+out,[invBS1Purchase],[rcvBS1Purchase]
+out,[invBS2Purchase],[rcvBS2Purchase]

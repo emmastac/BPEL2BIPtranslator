@@ -1,0 +1,2 @@
+/home/dsg003/Dropbox/eclipse_workspace/BIP2LATEX_revised2/docs/bip_sample/build/check/CMakeFiles/pack_check.dir
+/home/dsg003/Dropbox/eclipse_workspace/BIP2LATEX_revised2/docs/bip_sample/build/CMakeFiles/system.dir

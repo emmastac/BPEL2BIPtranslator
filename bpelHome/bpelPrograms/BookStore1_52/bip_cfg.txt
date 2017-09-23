@@ -1,0 +1,4 @@
+requestDirection,reqActivity,respActivity+
+in,[receiveBookStorePrice],[replyBookstore]
+in,[receiveBookStorePurchase],[replyBookstore]
+in,[receiveBookStoreCancel],[replyBookstore]

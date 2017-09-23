@@ -1,0 +1,6 @@
+requestDirection, requestActName, responseActName
+in,[receive1],[invokeClientFault],[invokeClientFaultNoRating],[invokeClientNoBookPrice],[invokeClientCreditCardNotApproved],[invokeClientApproved]
+out,[invokeBookStore1Price],[receiveBookStore1Price]
+out,[invokeBookStore2Price],[receiveBookStore2Price]
+out,[invokeBookStore1Purchase],[receiveBookStore1Purchase]
+out,[invokeBookStore2Purchase],[receiveBookStore2Purchase]

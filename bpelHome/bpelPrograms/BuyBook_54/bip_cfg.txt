@@ -1,0 +1,6 @@
+requestDirection,requestOperation[partnerLinkScopeName::pl,pl:pt,op,cs+],responseOperation[partnerLinkScopeName::pl,pl:pt,op,cs+]+
+in,[receiveBookPurchase],[invokeClient]
+out,[invokeBookStore1Price],[receiveBookStore1Price]
+out,[invokeBookStore2Price],[receiveBookStore2Price]
+out,[invokeBookStore1Purchase],[receiveBookStore1Purchase]
+out,[invokeBookStore2Purchase],[receiveBookStore2Purchase]

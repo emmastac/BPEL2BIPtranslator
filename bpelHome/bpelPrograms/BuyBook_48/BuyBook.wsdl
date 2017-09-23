@@ -1,0 +1,50 @@
+﻿<?xml version="1.0" encoding="utf-8" ?> 
+<definitions xmlns:http="http://schemas.xmlsoap.org/wsdl/http/" 
+             xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" 
+             xmlns:xs="http://www.w3.org/2001/XMLSchema" 
+             xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/" 
+             xmlns:bkr="http://oracle.com/service/bookrating/" 
+             xmlns:bst="http://oracle.com/service/bookstore/" 
+             xmlns:tns="http://oracle.com/bpel/buybook/" 
+             targetNamespace="http://oracle.com/bpel/buybook/" 
+             xmlns="http://schemas.xmlsoap.org/wsdl/"
+             xmlns:plnk="http://schemas.xmlsoap.org/ws/2003/05/partner-link/" >
+
+<import namespace="http://oracle.com/service/bookrating/" 
+        location="http://localhost:9700/orabpel/default/BookRating/BookRating?wsdl"/>
+
+<import namespace="http://oracle.com/service/bookstore/" 
+        location="http://localhost:9700/orabpel/default/BookStore1/BookStore1?wsdl"/>
+
+
+<portType name="BuyBookPT">
+  <operation name="BuyBook">
+    <input message="bst:BookPurchaseMessage" /> 
+  </operation>
+  <operation name="CancelBuy">
+    <input message="bst:BookPurchaseMessage" /> 
+  </operation>
+</portType>
+
+<portType name="ClientCallbackPT">
+  <operation name="ClientCallback">
+    <input message="bst:BookResponseMessage" /> 
+  </operation>
+
+  <operation name="ClientCallbackFault">
+    <input message="bst:FaultMessage" /> 
+  </operation>
+</portType>
+
+<!-- Partner link type -->
+<plnk:partnerLinkType name="BuyBookLT">
+  <plnk:role name="BuyBookService">
+    <plnk:portType name="tns:BuyBookPT" />
+  </plnk:role>
+  <plnk:role name="BuyBookCustomer">
+    <plnk:portType name="tns:ClientCallbackPT" />
+  </plnk:role>
+</plnk:partnerLinkType>
+
+
+</definitions>

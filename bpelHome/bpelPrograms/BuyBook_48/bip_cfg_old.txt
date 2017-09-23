@@ -1,0 +1,2 @@
+requestDirection,requestOperation[partnerLinkScopeName::pl,pl:pt,op,cs+],responseOperation[partnerLinkScopeName::pl,pl:pt,op,cs+]+
+in,[BuyBook::Client,buy:BuyBookPT,BuyBook],[BuyBook::Client,buy:ClientCallbackPT,ClientCallbackFault]

@@ -1,0 +1,7 @@
+requestDirection,reqAct, respAct...
+in,[receiveClient],[invokeClientFault1],[invokeClientFault2],[invokeClientFault3],[invokeClientFault4],[invokeClientFault5],[invokeClientFault7],[invokeClientFault8],[invokeClientFault9],[responseClient]
+out,[invBS1_Purchase],[rcvBS1_Final],[rcvBS1_NAvailable],[rcvBS1_OOstock],[rcvBS1_invalCCard]
+out,[invBS2_Purchase],[rcvBS2_Final],[rcvBS2_NAvailable],[rcvBS2_OOstock],[rcvBS2_invalCCard]
+
+out,[invokeBookStore1],[receiveBookPurchaseCallback],[receiveBookNotAvailable],[receiveBookStoreOutOfStock]
+out,[invokeBookStore2],[receiveBookPurchaseCallback2],[receiveBookNotAvailable2],[receiveBookStoreOutOfStock2]

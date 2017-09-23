@@ -1,0 +1,48 @@
+﻿<?xml version="1.0" encoding="utf-8"?> 
+
+<!-- Book Rating -->
+
+<process name="BookRating" 
+         targetNamespace="http://oracle.com/service/bookrating/" 
+         xmlns="http://schemas.xmlsoap.org/ws/2003/03/business-process/"
+         xmlns:bkr="http://oracle.com/service/bookrating/" >
+   
+   <partnerLinks>
+      <partnerLink name="BookRating" 
+                   partnerLinkType="bkr:BookRatingLT"
+                   myRole="BookRatingService"/>
+
+   </partnerLinks>
+
+   <variables>
+      <!-- input for this process -->      
+      <variable name="BookRatingRequest" messageType="bkr:BookRatingRequestMessage"/>
+      <!-- output -->
+      <variable name="BookRatingResponse" messageType="bkr:BookRatingResponseMessage"/>
+   </variables>
+
+   <sequence>
+
+      <!-- Receive the initial request -->
+      <receive name="receiveBookRating" partnerLink="BookRating" 
+               portType="bkr:BookRatingPT" 
+               operation="BookRating" 
+               variable="BookRatingRequest"
+               createInstance="yes" />
+
+      <!-- Prepare the output -->
+      <assign>
+        <copy>
+          <from expression="number(5)"/>
+          <to variable="BookRatingResponse" part="rating"/>
+        </copy>
+      </assign>
+      
+      <!-- Send a response -->
+      <reply partnerLink="BookRating" 
+             portType="bkr:BookRatingPT" 
+             operation="BookRating" 
+             variable="BookRatingResponse"/>
+   </sequence>
+
+</process>

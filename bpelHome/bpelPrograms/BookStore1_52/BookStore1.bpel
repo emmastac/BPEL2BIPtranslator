@@ -1,0 +1,109 @@
+﻿<?xml version="1.0" encoding="utf-8"?> 
+
+<!-- BookStore -->
+
+<process name="BookStore1" 
+         targetNamespace="http://oracle.com/service/bookstore/" 
+         xmlns="http://schemas.xmlsoap.org/ws/2003/03/business-process/"
+         xmlns:bst="http://oracle.com/service/bookstore/" >
+   
+   <partnerLinks>
+      <partnerLink name="BookStore" 
+                   partnerLinkType="bst:BookStoreLT"
+                   partnerRole="BookStoreCustomer"
+                   myRole="BookStoreService"/>
+                   
+   </partnerLinks>
+
+   <variables>
+      <!-- input -->
+      <variable name="BookQuery" messageType="bst:BookRequestMessage"/>
+      <variable name="BookDetails" messageType="bst:BookPurchaseMessage"/>
+      <!-- output -->
+      <variable name="BookResponse" messageType="bst:BookResponseMessage"/>
+   </variables>
+
+   <sequence>
+
+      <!-- Receive the initial request -->
+      <pick createInstance="yes">
+         <onMessage name="receiveBookStorePrice" partnerLink="BookStore" 
+                    portType="bst:BookPurchasePT" 
+                    operation="BookPriceQuery" 
+                    variable="BookQuery">
+            
+            <sequence>
+              <!-- Prepare the output -->
+              <assign>
+                <copy>
+                  <from>
+                    <confirmation xmlns="http://oracle.com/service/bookstore/">
+                     <Price>29</Price>
+                     <Description>24 hours delivery</Description>
+                     <Approved>false</Approved>
+                    </confirmation>
+                  </from>
+                  <to variable="BookResponse" part="confirmation" />
+                </copy>
+              </assign>            
+            </sequence>
+
+         </onMessage>
+
+
+         <onMessage name="receiveBookStorePurchase" partnerLink="BookStore" 
+                    portType="bst:BookPurchasePT" 
+                    operation="BookPurchase" 
+                    variable="BookDetails">
+
+            <sequence>
+              <!-- Prepare the output -->
+              <assign>
+                <copy>
+                  <from>
+                    <confirmation xmlns="http://oracle.com/service/bookstore/">
+                     <Price>29</Price>
+                     <Description>Credit card processed</Description>
+                     <Approved>true</Approved>
+                    </confirmation>
+                  </from>
+                  <to variable="BookResponse" part="confirmation" />
+                </copy>
+              </assign>            
+            </sequence>
+
+         </onMessage>
+
+         <onMessage name="receiveBookStoreCancel" partnerLink="BookStore" 
+                    portType="bst:BookPurchasePT" 
+                    operation="CancelBookPurchase" 
+                    variable="BookDetails">
+
+            <sequence>
+              <!-- Prepare the output -->
+              <assign>
+                <copy>
+                  <from>
+                    <confirmation xmlns="http://oracle.com/service/bookstore/">
+                     <Price>-29</Price>
+                     <Description>Credit card processed</Description>
+                     <Approved>true</Approved>
+                    </confirmation>
+                  </from>
+                  <to variable="BookResponse" part="confirmation" />
+                </copy>
+              </assign>            
+            </sequence>
+
+         </onMessage>
+        
+      </pick>
+      
+      <!-- Make a callback -->
+      <invoke name="replyBookstore" partnerLink="BookStore" 
+              portType="bst:BookPurchaseCallbackPT" 
+              operation="BookPurchaseCallback"
+              inputVariable="BookResponse" />
+   </sequence>
+
+</process>

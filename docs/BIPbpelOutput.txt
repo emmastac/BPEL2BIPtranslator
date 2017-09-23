@@ -1,0 +1,111 @@
+[BIP ENGINE]:
+[BIP ENGINE]: initialize components...
+[BIP ENGINE]: random scheduling based on seed=1
+[BIP ENGINE]: state #0: 1 interaction and 1 internal port:
+[BIP ENGINE]:   [0] ROOT.start: PR.start()
+[BIP ENGINE]:   [1] ROOT.PR.OBS.faultInjection
+[BIP ENGINE]:  -> choose [1] ROOT.PR.OBS.faultInjection
+[BIP ENGINE]: state #1: 1 interaction and 1 internal port:
+[BIP ENGINE]:   [0] ROOT.start: PR.start()
+[BIP ENGINE]:   [1] ROOT.PR.OBS.recovery
+[BIP ENGINE]: -> choose [0] ROOT.start: PR.start()
+for deadcode observer: started 11d,[BIP ENGINE]: state #2: 1 interaction and 1 internal port:
+[BIP ENGINE]:   [0] ROOT.PR.PR.PR.check_receive_11_in: DHS.check_receive_11(msg1=0;) SC9CMA.check_receive_11(msg1=0;msg2=0;msg3=0;)
+[BIP ENGINE]:   [1] ROOT.PR.OBS.recovery
+[BIP ENGINE]:  -> choose [1] ROOT.PR.OBS.recovery
+[BIP ENGINE]: state #3: 1 interaction and 1 internal port:
+[BIP ENGINE]:   [0] ROOT.PR.PR.PR.check_receive_11_in: DHS.check_receive_11(msg1=0;) SC9CMA.check_receive_11(msg1=0;msg2=0;msg3=0;)
+[BIP ENGINE]:   [1] ROOT.PR.OBS.faultInjection
+[BIP ENGINE]:  -> choose [1] ROOT.PR.OBS.faultInjection
+[BIP ENGINE]: state #4: 1 interaction and 1 internal port:
+[BIP ENGINE]:   [0] ROOT.PR.PR.PR.check_receive_11_in: DHS.check_receive_11(msg1=0;) SC9CMA.check_receive_11(msg1=0;msg2=0;msg3=0;)
+[BIP ENGINE]:   [1] ROOT.PR.OBS.recovery
+[BIP ENGINE]:  -> choose [1] ROOT.PR.OBS.recovery
+[BIP ENGINE]: state #5: 1 interaction and 1 internal port:
+[BIP ENGINE]:   [0] ROOT.PR.PR.PR.check_receive_11_in: DHS.check_receive_11(msg1=0;) SC9CMA.check_receive_11(msg1=0;msg2=0;msg3=0;)
+[BIP ENGINE]:   [1] ROOT.PR.OBS.faultInjection
+[BIP ENGINE]: -> choose [0] ROOT.PR.PR.PR.check_receive_11_in: DHS.check_receive_11(msg1=0;) SC9CMA.check_receive_11(msg1=0;msg2=0;msg3=0;)
+[BIP ENGINE]: state #6: 1 interaction and 1 internal port:
+[BIP ENGINE]:   [0] ROOT.rcvMsg_receive_111: PR.rcvMsg_receive_11(msg1=0;)
+[BIP ENGINE]:   [1] ROOT.PR.OBS.faultInjection
+[BIP ENGINE]: -> choose [0] ROOT.rcvMsg_receive_111: PR.rcvMsg_receive_11(msg1=0;)
+[BIP ENGINE]: state #7: 1 interaction and 2 internal ports:
+[BIP ENGINE]:   [0] ROOT.PR.PR.PR.allowMA: allowMA2.xpr() SCNTR.allow()
+[BIP ENGINE]:   [1] ROOT.PR.OBS.faultInjection
+[BIP ENGINE]:   [2] ROOT.PR.PR.PR.SC9CMA.SQ21C1.fault_invalidVariables
+[BIP ENGINE]:  -> choose [2] ROOT.PR.PR.PR.SC9CMA.SQ21C1.fault_invalidVariables
+[BIP ENGINE]: state #8: 1 interaction and 1 internal port:
+[BIP ENGINE]:   [0] ROOT.PR.PR.PR.fault_handle1: SC9CMA.fault(msg1=14;) SC9CFH.start_handle(msg1=0;) SCNTR.fault_i()
+[BIP ENGINE]:   [1] ROOT.PR.OBS.faultInjection
+[BIP ENGINE]: -> choose [0] ROOT.PR.PR.PR.fault_handle1: SC9CMA.fault(msg1=14;) SC9CFH.start_handle(msg1=0;) SCNTR.fault_i()
+[BIP ENGINE]: state #9: 3 interactions and 1 internal port:
+[BIP ENGINE]:   [0] ROOT.PR.PR.PR.SC9CFH.disable_in: FHCTRL.disable_in()
+[BIP ENGINE]:   [1] ROOT.PR.PR.PR.SC9CMA.start2: SQ21C1.fin() SQ21C2.start()
+[BIP ENGINE]:   [2] ROOT.PR.PR.PR.term_in: SCNTR.term2() SC9CMA.term() SC9CEH.term() SC9CCH.disable() SC9CTH.disable()
+[BIP ENGINE]:   [3] ROOT.PR.OBS.faultInjection
+[BIP ENGINE]: -> choose [2] ROOT.PR.PR.PR.term_in: SCNTR.term2() SC9CMA.term() SC9CEH.term() SC9CCH.disable() SC9CTH.disable()
+[BIP ENGINE]: state #10: 1 interaction and 1 internal port:
+[BIP ENGINE]:   [0] ROOT.PR.PR.PR.SC9CFH.disable_in: FHCTRL.disable_in()
+[BIP ENGINE]:   [1] ROOT.PR.OBS.faultInjection
+[BIP ENGINE]: -> choose [0] ROOT.PR.PR.PR.SC9CFH.disable_in: FHCTRL.disable_in()
+[BIP ENGINE]: state #11: 1 interaction and 1 internal port:
+[BIP ENGINE]:   [0] ROOT.PR.PR.PR.startFH: SCNTR.startFH() MAEHcompl.xpr() SC9CFH.start()
+[BIP ENGINE]:   [1] ROOT.PR.OBS.faultInjection
+[BIP ENGINE]:  -> choose [1] ROOT.PR.OBS.faultInjection
+[BIP ENGINE]: state #12: 1 interaction and 1 internal port:
+[BIP ENGINE]:   [0] ROOT.PR.PR.PR.startFH: SCNTR.startFH() MAEHcompl.xpr() SC9CFH.start()
+[BIP ENGINE]:   [1] ROOT.PR.OBS.recovery
+[BIP ENGINE]: -> choose [0] ROOT.PR.PR.PR.startFH: SCNTR.startFH() MAEHcompl.xpr() SC9CFH.start()
+for deadcode observer: started 32,[BIP ENGINE]: state #13: 1 interaction and 1 internal port:
+[BIP ENGINE]:   [0] ROOT.PR.PR.PR.allowFH: SC9CFH.allow() SCNTR.allow()
+[BIP ENGINE]:   [1] ROOT.PR.OBS.recovery
+[BIP ENGINE]:  -> choose [1] ROOT.PR.OBS.recovery
+[BIP ENGINE]: state #14: 1 interaction and 1 internal port:
+[BIP ENGINE]:   [0] ROOT.PR.PR.PR.allowFH: SC9CFH.allow() SCNTR.allow()
+[BIP ENGINE]:   [1] ROOT.PR.OBS.faultInjection
+[BIP ENGINE]:  -> choose [1] ROOT.PR.OBS.faultInjection
+[BIP ENGINE]: state #15: 1 interaction and 1 internal port:
+[BIP ENGINE]:   [0] ROOT.PR.PR.PR.allowFH: SC9CFH.allow() SCNTR.allow()
+[BIP ENGINE]:   [1] ROOT.PR.OBS.recovery
+[BIP ENGINE]:  -> choose [1] ROOT.PR.OBS.recovery
+[BIP ENGINE]: state #16: 1 interaction and 1 internal port:
+[BIP ENGINE]:   [0] ROOT.PR.PR.PR.allowFH: SC9CFH.allow() SCNTR.allow()
+[BIP ENGINE]:   [1] ROOT.PR.OBS.faultInjection
+[BIP ENGINE]:  -> choose [1] ROOT.PR.OBS.faultInjection
+[BIP ENGINE]: state #17: 1 interaction and 1 internal port:
+[BIP ENGINE]:   [0] ROOT.PR.PR.PR.allowFH: SC9CFH.allow() SCNTR.allow()
+[BIP ENGINE]:   [1] ROOT.PR.OBS.recovery
+[BIP ENGINE]:  -> choose [1] ROOT.PR.OBS.recovery
+[BIP ENGINE]: state #18: 1 interaction and 1 internal port:
+[BIP ENGINE]:   [0] ROOT.PR.PR.PR.allowFH: SC9CFH.allow() SCNTR.allow()
+[BIP ENGINE]:   [1] ROOT.PR.OBS.faultInjection
+[BIP ENGINE]: -> choose [0] ROOT.PR.PR.PR.allowFH: SC9CFH.allow() SCNTR.allow()
+[BIP ENGINE]: state #19: 1 interaction and 1 internal port:
+[BIP ENGINE]:   [0] ROOT.PR.PR.PR.fault1: SC9CFH.fault(msg1=14;) SCNTR.fault()
+[BIP ENGINE]:   [1] ROOT.PR.OBS.faultInjection
+[BIP ENGINE]:  -> choose [1] ROOT.PR.OBS.faultInjection
+[BIP ENGINE]: state #20: 1 interaction and 1 internal port:
+[BIP ENGINE]:   [0] ROOT.PR.PR.PR.fault1: SC9CFH.fault(msg1=14;) SCNTR.fault()
+[BIP ENGINE]:   [1] ROOT.PR.OBS.recovery
+[BIP ENGINE]: -> choose [0] ROOT.PR.PR.PR.fault1: SC9CFH.fault(msg1=14;) SCNTR.fault()
+[BIP ENGINE]: state #21: 2 interactions and 1 internal port:
+[BIP ENGINE]:   [0] ROOT.PR.PR.PR.doneFH: SC9CFH.done() SCNTR.done()
+[BIP ENGINE]:   [1] ROOT.PR.PR.PR.term3: SCNTR.term3()
+[BIP ENGINE]:   [2] ROOT.PR.OBS.recovery
+[BIP ENGINE]: -> choose [0] ROOT.PR.PR.PR.doneFH: SC9CFH.done() SCNTR.done()
+[BIP ENGINE]: state #22: 1 interaction and 1 internal port:
+[BIP ENGINE]:   [0] ROOT.PR.PR.PR.term3: SCNTR.term3()
+[BIP ENGINE]:   [1] ROOT.PR.OBS.recovery
+[BIP ENGINE]: -> choose [0] ROOT.PR.PR.PR.term3: SCNTR.term3()
+[BIP ENGINE]: state #23: 1 interaction and 1 internal port:
+[BIP ENGINE]:   [0] ROOT.PR.PR.PR.FHfin: SCNTR.FHfin() SC9CFH.fin()
+[BIP ENGINE]:   [1] ROOT.PR.OBS.recovery
+[BIP ENGINE]:  -> choose [1] ROOT.PR.OBS.recovery
+[BIP ENGINE]: state #24: 1 interaction and 1 internal port:
+[BIP ENGINE]:   [0] ROOT.PR.PR.PR.FHfin: SCNTR.FHfin() SC9CFH.fin()
+[BIP ENGINE]:   [1] ROOT.PR.OBS.faultInjection
+[BIP ENGINE]: -> choose [0] ROOT.PR.PR.PR.FHfin: SCNTR.FHfin() SC9CFH.fin()
+[BIP ENGINE]: state #25: 1 interaction and 1 internal port:
+[BIP ENGINE]:   [0] ROOT.fin: PR.fin()
+[BIP ENGINE]:   [1] ROOT.PR.OBS.faultInjection
+[BIP ENGINE]: -> choose [0] ROOT.fin: PR.fin()

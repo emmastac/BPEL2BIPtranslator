@@ -1,0 +1,3 @@
+requestDirection,requestOperation[partnerLinkScopeName::pl,pl:pt,op,cs+],responseOperation[partnerLinkScopeName::pl,pl:pt,op,cs+]+
+in,[Pick11],[callbackClient1]
+in,[Pick12],[callbackClient2]

@@ -1,0 +1,528 @@
+﻿<?xml version="1.0" encoding="utf-8"?> 
+
+<process name="BuyBook" 
+         targetNamespace="http://oracle.com/bpel/buybook/" 
+         xmlns="http://schemas.xmlsoap.org/ws/2003/03/business-process/"
+         xmlns:bpws="http://schemas.xmlsoap.org/ws/2003/03/business-process/"
+         xmlns:buy="http://oracle.com/bpel/buybook/"
+         xmlns:bkr="http://oracle.com/service/bookrating/" 
+         xmlns:bst="http://oracle.com/service/bookstore/" >
+   
+   <partnerLinks>
+      <partnerLink name="Client" 
+                   partnerLinkType="buy:BuyBookLT"
+                   myRole="BuyBookService"
+                   partnerRole="BuyBookCustomer"/>
+
+      <partnerLink name="BookRating" 
+                   partnerLinkType="bkr:BookRatingLT"
+                   partnerRole="BookRatingService"/>
+
+      <partnerLink name="BookStore1" 
+                   partnerLinkType="bst:BookStoreLT"
+                   myRole="BookStoreCustomer"
+                   partnerRole="BookStoreService"/>
+                   
+      <partnerLink name="BookStore2" 
+                   partnerLinkType="bst:BookStoreLT"
+                   myRole="BookStoreCustomer"
+                   partnerRole="BookStoreService"/>
+                   
+   </partnerLinks>
+
+   <variables>
+      <!-- input for this process -->      
+      <variable name="BookPurchase" messageType="bst:BookPurchaseMessage"/>
+      <!-- input for Book Store web services -->
+      <variable name="BookRequest" messageType="bst:BookRequestMessage"/>
+      <!-- output final -->
+      <variable name="BookResponseFinal" messageType="bst:BookResponseMessage"/>
+      <!-- fault -->
+      <variable name="Fault" messageType="bst:FaultMessage"/>
+   </variables>
+
+
+   <faultHandlers>
+
+      <catchAll>
+
+        <sequence>
+          <!-- Create the Fault variable -->
+          <assign>
+            <copy>
+              <from expression="string('Other fault')" />
+              <to variable="Fault" part="error" />
+            </copy>
+          </assign>
+  
+          <invoke name="invokeClientFault1" partnerLink="Client" 
+                  portType="buy:ClientCallbackPT" 
+                  operation="ClientCallbackFault"
+                  inputVariable="Fault" />
+        </sequence>
+                
+      </catchAll>
+
+   </faultHandlers>
+
+   <sequence>
+
+      <!-- Receive the initial request from client -->
+      <receive name="receiveClient" partnerLink="Client" 
+               portType="buy:BuyBookPT" 
+               operation="BuyBook" 
+               variable="BookPurchase"
+               createInstance="yes" />
+
+      <scope name="RetrieveBookRating">
+
+        <variables>
+            <!-- input for the Book Rating web service -->
+            <variable name="BookRatingRequest" messageType="bkr:BookRatingRequestMessage"/>
+            <!-- output from the Book Rating web service -->
+            <variable name="BookRatingResponse" messageType="bkr:BookRatingResponseMessage"/>
+        </variables>
+
+        <faultHandlers>
+      
+            <catchAll>
+      
+              <sequence>
+                <assign>
+                  <copy>
+                    <from expression="string('Unable to retrieve book rating')" />
+                    <to variable="Fault" part="error" />
+                  </copy>
+                </assign>
+        
+                <invoke name="invokeClientFault2" partnerLink="Client" 
+                        portType="buy:ClientCallbackPT" 
+                        operation="ClientCallbackFault"
+                        inputVariable="Fault" />
+              </sequence>
+                      
+            </catchAll>
+      
+        </faultHandlers>
+        
+        <sequence>
+
+          <!-- Prepare the input for the Book Rating -->
+          <assign>
+            <copy>
+              <from variable="BookPurchase" part="book"/>
+              <to variable="BookRatingRequest" part="book"/>
+            </copy>
+          </assign>
+          
+          <!-- Synchronously invoke the Book Rating Web Service -->
+          <scope name="BookRatingInvoke">
+          
+            <faultHandlers>
+
+              <catchAll>
+                <!-- If book rating is not avaliable assign 0 -->
+                <assign>
+                  <copy>
+                    <from expression="number(0)"/>
+                    <to variable="BookRatingResponse" part="rating"/>
+                  </copy>
+                </assign>          
+              </catchAll>
+              
+            </faultHandlers>
+            
+            <invoke partnerLink="BookRating" 
+                  portType="bkr:BookRatingPT" 
+                  operation="BookRating"
+                  inputVariable="BookRatingRequest" 
+                  outputVariable="BookRatingResponse" />
+          
+          </scope>
+    
+          <!-- Prepare the input for Book Stores -->
+          <assign>
+            <copy>
+              <from variable="BookPurchase" part="book"/>
+              <to variable="BookRequest" part="book"/>
+            </copy>
+            <copy>
+              <from variable="BookPurchase" part="quantity"/>
+              <to variable="BookRequest" part="quantity"/>
+            </copy>
+          </assign>
+          
+        </sequence>
+        
+      </scope>
+
+      <scope name="SelectBestBookPrice">
+
+        <variables>
+          <!-- output from BS1 -->
+          <variable name="BookResponse1" messageType="bst:BookResponseMessage"/>
+          <!-- output from BS2 -->
+          <variable name="BookResponse2" messageType="bst:BookResponseMessage"/>
+        </variables>
+
+        <faultHandlers>
+      
+            <catch faultName="buy:BookNotAvaliable" faultVariable="Fault">
+              
+                <invoke name="invokeClientFault3" partnerLink="Client" 
+                        portType="buy:ClientCallbackPT" 
+                        operation="ClientCallbackFault"
+                        inputVariable="Fault" />
+                      
+            </catch>
+
+            <catch faultName="buy:OutOfStock" faultVariable="Fault">
+              
+                <invoke name="invokeClientFault4" partnerLink="Client" 
+                        portType="buy:ClientCallbackPT" 
+                        operation="ClientCallbackFault"
+                        inputVariable="Fault" />
+                      
+            </catch>
+
+            <catch faultName="buy:InvalidCreditCard" faultVariable="Fault">
+              
+                <invoke name="invokeClientFault5" partnerLink="Client" 
+                        portType="buy:ClientCallbackPT" 
+                        operation="ClientCallbackFault"
+                        inputVariable="Fault" />
+                      
+            </catch>
+
+            <catch faultName="buy:Timeout">
+              
+              <sequence>
+                <assign>
+                  <copy>
+                    <from expression="string('Callback timeout')" />
+                    <to variable="Fault" part="error" />
+                  </copy>
+                </assign>
+
+                <invoke name="invokeClientFault7" partnerLink="Client" 
+                        portType="buy:ClientCallbackPT" 
+                        operation="ClientCallbackFault"
+                        inputVariable="Fault" />
+              </sequence>
+                      
+            </catch>
+ 
+            <catchAll>
+      
+              <sequence>
+                <assign>
+                  <copy>
+                    <from expression="string('Unable to query book price')" />
+                    <to variable="Fault" part="error" />
+                  </copy>
+                </assign>
+        
+                <invoke name="invokeClientFault8" partnerLink="Client" 
+                        portType="buy:ClientCallbackPT" 
+                        operation="ClientCallbackFault"
+                        inputVariable="Fault" />
+              </sequence>
+                      
+            </catchAll>
+      
+        </faultHandlers>
+        
+        <sequence>
+        
+          <!-- Make a concurrent invocation to BS1 and BS2 -->
+          <flow>
+          
+            <sequence>
+            
+              <invoke name="invokeBookStore1" partnerLink="BookStore1" 
+                  portType="bst:BookPurchasePT" 
+                  operation="BookPriceQuery"
+                  inputVariable="BookRequest" />
+    
+              <pick>
+              
+                <onMessage name="receiveBookPurchaseCallback" partnerLink="BookStore1" 
+                    portType="bst:BookPurchaseCallbackPT" 
+                    operation="BookPurchaseCallback"
+                    variable="BookResponse1" >
+                  <empty/>
+                </onMessage>
+
+                <onMessage name="receiveBookNotAvailable" partnerLink="BookStore1" 
+                    portType="bst:BookPurchaseCallbackPT" 
+                    operation="BookNotAvaliable"
+                    variable="Fault" >
+                  
+                  <!-- Here we could recover or simply throw the fault -->
+                  <throw faultName="buy:BookNotAvaliable" 
+                     faultVariable="Fault" />
+
+                </onMessage>
+
+                <onMessage name="receiveBookStoreOutOfStock" partnerLink="BookStore1" 
+                    portType="bst:BookPurchaseCallbackPT" 
+                    operation="OutOfStock"
+                    variable="Fault" >
+                  
+                  <!-- Here we could recover or simply throw the fault -->
+                  <throw faultName="buy:OutOfStock" 
+                     faultVariable="Fault" />
+
+                </onMessage>
+              
+                <onAlarm for="'PT15M'">
+
+                  <throw faultName="buy:Timeout" 
+                     faultVariable="Fault" />
+                
+                </onAlarm>
+                  
+              </pick>
+              
+    
+            </sequence>
+    
+            <sequence>
+            
+              <invoke name="invokeBookStore2" partnerLink="BookStore2" 
+                  portType="bst:BookPurchasePT" 
+                  operation="BookPriceQuery"
+                  inputVariable="BookRequest" />
+    
+              <pick>
+              
+                <onMessage name="receiveBookPurchaseCallback2" partnerLink="BookStore2" 
+                    portType="bst:BookPurchaseCallbackPT" 
+                    operation="BookPurchaseCallback"
+                    variable="BookResponse2" >
+                  <empty/>
+                </onMessage>
+
+                <onMessage name="receiveBookNotAvailable2" partnerLink="BookStore2" 
+                    portType="bst:BookPurchaseCallbackPT" 
+                    operation="BookNotAvaliable"
+                    variable="Fault" >
+                  
+                  <!-- Here we could recover or simply throw the fault -->
+                  <throw faultName="buy:BookNotAvaliable" 
+                     faultVariable="Fault" />
+
+                </onMessage>
+
+                <onMessage name="receiveBookStoreOutOfStock2" partnerLink="BookStore2" 
+                    portType="bst:BookPurchaseCallbackPT" 
+                    operation="OutOfStock"
+                    variable="Fault" >
+                  
+                  <!-- Here we could recover or simply throw the fault -->
+                  <throw faultName="buy:OutOfStock" 
+                     faultVariable="Fault" />
+
+                </onMessage>
+              
+                <onAlarm for="'PT15M'">
+
+                  <throw faultName="buy:Timeout" 
+                     faultVariable="Fault" />
+                
+                </onAlarm>
+                  
+              </pick>
+    
+            </sequence>
+    
+          </flow>
+    
+          <!-- Select the best offer -->
+          <if>
+                  
+            <condition>$BookResponse1.confirmation/bst:Price
+                          &lt;= $BookResponse2.confirmation/bst:Price</condition>
+                        
+               <!-- Select BS1 -->
+               <sequence>
+                  <invoke name="invBS1_Purchase" partnerLink="BookStore1" 
+                      portType="bst:BookPurchasePT" 
+                      operation="BookPurchase"
+                      inputVariable="BookPurchase" />
+        
+                 <pick>
+                  
+                    <onMessage name="rcvBS1_Final" partnerLink="BookStore1" 
+                        portType="bst:BookPurchaseCallbackPT" 
+                        operation="BookPurchaseCallback"
+                        variable="BookResponseFinal" >
+                      <empty/>
+                    </onMessage>
+
+                    <onMessage name="rcvBS1_NAvailable"  partnerLink="BookStore1" 
+                        portType="bst:BookPurchaseCallbackPT" 
+                        operation="BookNotAvaliable"
+                        variable="Fault" >
+                      
+                      <!-- Here we could recover or simply throw the fault -->
+                      <throw faultName="buy:BookNotAvaliable" 
+                         faultVariable="Fault" />
+    
+                    </onMessage>
+    
+                    <onMessage name="rcvBS1_OOstock" partnerLink="BookStore1" 
+                        portType="bst:BookPurchaseCallbackPT" 
+                        operation="OutOfStock"
+                        variable="Fault" >
+                      
+                      <!-- Here we could recover or simply throw the fault -->
+                      <throw faultName="buy:OutOfStock" 
+                         faultVariable="Fault" />
+    
+                    </onMessage>
+                  
+                    <onMessage name="rcvBS1_invalCCard" partnerLink="BookStore1" 
+                        portType="bst:BookPurchaseCallbackPT" 
+                        operation="InvalidCreditCard"
+                        variable="Fault" >
+                      
+                      <!-- Here we could recover or simply throw the fault -->
+                      <throw faultName="buy:InvalidCreditCard" 
+                         faultVariable="Fault" />
+    
+                    </onMessage>
+                    
+                    <onAlarm for="'PT15M'">
+    
+                      <throw faultName="buy:Timeout" 
+                         faultVariable="Fault" />
+                    
+                    </onAlarm>
+                      
+                  </pick>
+
+               </sequence>
+               
+                        
+            <else>
+               <!-- Select BS2 -->
+               <sequence>
+                  <invoke name="invBS2_Purchase" partnerLink="BookStore2" 
+                      portType="bst:BookPurchasePT" 
+                      operation="BookPurchase"
+                      inputVariable="BookPurchase" />
+        
+                  <pick>
+                  
+                    <onMessage name="rcvBS2_Final" partnerLink="BookStore2" 
+                        portType="bst:BookPurchaseCallbackPT" 
+                        operation="BookPurchaseCallback"
+                        variable="BookResponseFinal" >
+                      <empty/>
+                    </onMessage>
+    
+                    <onMessage name="rcvBS2_NAvailable" partnerLink="BookStore2" 
+                        portType="bst:BookPurchaseCallbackPT" 
+                        operation="BookNotAvaliable"
+                        variable="Fault" >
+                      
+                      <!-- Here we could recover or simply throw the fault -->
+                      <throw faultName="buy:BookNotAvaliable" 
+                         faultVariable="Fault" />
+    
+                    </onMessage>
+    
+                    <onMessage name="rcvBS2_OOstock" partnerLink="BookStore2" 
+                        portType="bst:BookPurchaseCallbackPT" 
+                        operation="OutOfStock"
+                        variable="Fault" >
+                      
+                      <!-- Here we could recover or simply throw the fault -->
+                      <throw faultName="buy:OutOfStock" 
+                         faultVariable="Fault" />
+    
+                    </onMessage>
+                  
+                    <onMessage name="rcvBS2_invalCCard" partnerLink="BookStore2" 
+                        portType="bst:BookPurchaseCallbackPT" 
+                        operation="InvalidCreditCard"
+                        variable="Fault" >
+                      
+                      <!-- Here we could recover or simply throw the fault -->
+                      <throw faultName="buy:InvalidCreditCard" 
+                         faultVariable="Fault" />
+    
+                    </onMessage>
+                    
+                    <onAlarm for="'PT15M'">
+    
+                      <throw faultName="buy:Timeout" 
+                         faultVariable="Fault" />
+                    
+                    </onAlarm>
+                      
+                  </pick>
+
+               </sequence>
+    
+            </else>
+          </if>
+
+        </sequence>
+
+      </scope>
+      
+      <scope name="ClientCallback">
+
+        <faultHandlers>
+
+            <catch faultName="buy:CreditCardNotApproved" faultVariable="Fault">
+              
+                <invoke name="invokeClientFault9" partnerLink="Client" 
+                        portType="buy:ClientCallbackPT" 
+                        operation="ClientCallbackFault"
+                        inputVariable="Fault" />
+                      
+            </catch>
+      
+        </faultHandlers>
+
+      
+        <!-- Check if the credit card is processed -->
+        <if>
+                
+          <condition>  $BookResponseFinal.confirmation/bst:Approved='true' </condition>
+  
+            <!-- Make a callback to the client -->
+            <invoke name="responseClient" partnerLink="Client" 
+                    portType="buy:ClientCallbackPT" 
+                    operation="ClientCallback"
+                    inputVariable="BookResponseFinal" />
+  
+                      
+          <else>
+  
+            <sequence>
+              <!-- Create the fault -->
+              <assign>
+                 <copy>
+                   <from expression="string('Credit card not approved')" />
+                   <to variable="Fault" part="error" />
+                 </copy>
+              
+              </assign>
+    
+              <!-- Throw fault -->
+              <throw faultName="buy:CreditCardNotApproved" 
+                     faultVariable="Fault" />
+            </sequence>
+  
+          </else>
+        </if>
+      
+      </scope>
+      
+   </sequence>
+
+</process>

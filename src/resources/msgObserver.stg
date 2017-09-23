@@ -1,0 +1,69 @@
+group msgObserver;
+
+ebport(intNum, boolNum) ::= "e$if(intNum)$$intNum$$else$0$endif$b$if(boolNum)$$boolNum$$else$0$endif$port"
+
+recursive(var)::=<< 
+$if(first(var))$ else if ( $first(var)$>0 ) then $first(var)$=$first(var)$-1; $recursive(var=rest(var))$ fi $endif$ 
+>>
+
+
+OBSERVER(compName, reqId, obsReq, obsResp, req, resp )::=<<
+
+connector type MsgOutObserveConn( $ebport(intNum=1)$ ima, $ebport()$ obs)
+	data int msg1
+	export port  $ebport(intNum=1)$ xpr(msg1)
+	define ima' obs
+	on ima obs
+	up{ msg1=ima.msg1; }
+	on ima
+	up{ msg1=ima.msg1; }
+end
+
+
+atom type MsgObserver_out()
+	$reqId:{ data int $it$ };separator="\n"$
+	$obsReq:{ export port $ebport()$ sndMsg_$first(it)$() };separator="\n"$
+	$obsResp:{ export port $ebport()$ rcvMsg_$first(it)$() };separator="\n"$
+	export port $ebport()$ fin()
+	
+	place INIT, PASS, VIOLATION
+	
+	initial to INIT do{ $reqId:{ $it$=0; };separator=" "$ 
+		$reqId:{ printf("msgout: initial,"); };separator="\n"$
+	 }
+	$obsReq:{ on sndMsg_$first(it)$ from INIT to INIT  do{ $first(rest(it))$=$first(rest(it))$+1; } };separator="\n"$
+	$obsResp:{ on rcvMsg_$first(it)$ from INIT to INIT  do{ 
+		if( $first(rest(it))$ > 0) then $first(rest(it))$ = $first(rest(it))$ -1;  $recursive(var=rest(rest(it)))$  fi
+	} };separator="\n"$
+	on fin from INIT to PASS provided( $reqId:{ $it$==0 };separator=" && "$ ) //do{  printf("\n OBS_PASS:allReceived");  }
+	on fin from INIT to VIOLATION provided( !( $reqId:{ $it$==0 };separator=" && "$ ) ) do{  
+		printf("\n OBS_VIOLATION:allReceived"); 
+		$reqId:{ if($it$>0) then printf(" $it$ %d", $it$); fi };separator="\n"$
+	}
+
+end
+
+
+compound type bpelProcess_msgout_obs()
+
+	component $compName$ PR()
+	component MsgObserver_out OBS()
+	
+	$obsReq:{ connector MsgOutObserveConn sndMsg_$first(it)$_obs( PR.sndMsg_$first(it)$, OBS.sndMsg_$first(it)$ ) };separator="\n"$
+	$obsResp:{ connector MsgOutObserveConn rcvMsg_$first(it)$_obs( PR.rcvMsg_$first(it)$, OBS.rcvMsg_$first(it)$ ) };separator="\n"$
+	connector BRDCASTD2o1 fin_obs(PR.fin, OBS.fin)
+	$!
+	$req:{ connector AASD1 sndMsg_$first(it)$1( PR.sndMsg_$first(it)$ ) };separator="\n"$
+	$resp:{ connector CPE1B0D rcvMsg_$first(it)$1( PR.rcvMsg_$first(it)$ ) };separator="\n"$
+	!$
+	
+	$obsReq:{ export port sndMsg_$first(it)$_obs.xpr as  sndMsg_$first(it)$};separator="\n"$
+	$obsResp:{ export port rcvMsg_$first(it)$_obs.xpr as  rcvMsg_$first(it)$ };separator="\n"$
+	$req:{ export port PR.sndMsg_$first(it)$ as sndMsg_$first(it)$ };separator="\n"$
+	$resp:{ export port PR.rcvMsg_$first(it)$ as rcvMsg_$first(it)$ };separator="\n"$
+
+	export port fin_obs.xpr as fin
+	export port PR.start as start
+end
+>>
+

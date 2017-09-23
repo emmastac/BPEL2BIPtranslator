@@ -1,0 +1,54 @@
+group deadlockObserver;
+
+ebport(intNum, boolNum) ::= "e$if(intNum)$$intNum$$else$0$endif$b$if(boolNum)$$boolNum$$else$0$endif$port"
+
+
+OBSERVER(compName, obsRcv, obsSnd )::=<<
+
+
+connector type DeadlockObserveConn( $ebport(intNum=1)$ ima, $ebport()$ obs)
+	data int msg1
+	export port  $ebport(intNum=1)$ xpr(msg1)
+	define ima obs
+	on ima obs
+	up{ msg1=ima.msg1; }
+end
+
+
+atom type DeadlockObserver()
+	$obsRcv:{ export port $ebport()$ rcvMsg_$first(it)$_noFail() 
+		export port $ebport()$ rcvMsg_$first(it)$_toFail()
+	};separator="\n"$
+	port $ebport()$ recovery()
+	
+	place INIT, FAIL
+	
+	initial to INIT 
+	
+	$obsRcv:{ on rcvMsg_$first(it)$_noFail from INIT to INIT 
+	on rcvMsg_$first(it)$_toFail from INIT to FAIL };separator="\n"$
+	internal from FAIL to INIT provided(OBS_BLOCK==0)
+
+end
+
+
+compound type bpelProcess_deadlock_obs()
+
+	component $compName$ PR()
+	component DeadlockObserver OBS()
+	
+	$obsRcv:{ connector DeadlockObserveConn rcvMsg_$first(it)$_noFail_obs( PR.rcvMsg_$first(it)$, OBS.rcvMsg_$first(it)$_noFail ) 
+		connector DeadlockObserveConn rcvMsg_$first(it)$_toFail_obs( PR.rcvMsg_$first(it)$, OBS.rcvMsg_$first(it)$_toFail ) 
+	};separator="\n"$
+	
+	$obsRcv:{ export port rcvMsg_$first(it)$_noFail_obs.xpr, rcvMsg_$first(it)$_toFail_obs.xpr as  rcvMsg_$first(it)$ };separator="\n"$
+	$obsSnd:{ export port PR.sndMsg_$first(it)$ as sndMsg_$first(it)$ };separator="\n"$
+
+	export port PR.fin as fin
+	export port PR.start as start
+end
+>>
+
+
+compound_name()::=<<bpelProcess_deadlock_obs>>
+

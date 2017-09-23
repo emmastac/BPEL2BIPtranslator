@@ -1,0 +1,49 @@
+﻿<?xml version="1.0" encoding="utf-8" ?> 
+<definitions xmlns:http="http://schemas.xmlsoap.org/wsdl/http/" 
+             xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" 
+             xmlns:xs="http://www.w3.org/2001/XMLSchema" 
+             xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/" 
+             xmlns:tns="http://oracle.com/service/bookrating/" 
+             targetNamespace="http://oracle.com/service/bookrating/" 
+             xmlns="http://schemas.xmlsoap.org/wsdl/"
+             xmlns:plnk="http://schemas.xmlsoap.org/ws/2003/05/partner-link/" >
+             
+<types>
+  <xs:schema elementFormDefault="qualified" 
+             targetNamespace="http://oracle.com/service/bookrating/">
+
+    <xs:complexType name="BookDscType">
+      <xs:sequence>
+        <xs:element name="Title" type="xs:string" /> 
+        <xs:element name="ISSN" type="xs:string" /> 
+        <xs:element name="Publisher" type="xs:string" /> 
+        <xs:element name="Authors" type="xs:string" /> 
+      </xs:sequence>
+    </xs:complexType>
+
+  </xs:schema>
+</types>
+
+<message name="BookRatingRequestMessage">
+  <part name="book" type="tns:BookDscType" /> 
+</message>
+
+<message name="BookRatingResponseMessage">
+  <part name="rating" type="xs:int" />
+</message>
+
+<portType name="BookRatingPT">
+  <operation name="BookRating">
+    <input message="tns:BookRatingRequestMessage" /> 
+    <output message="tns:BookRatingResponseMessage" /> 
+  </operation>
+</portType>
+
+<!-- Partner link type -->
+<plnk:partnerLinkType name="BookRatingLT">
+  <plnk:role name="BookRatingService">
+    <plnk:portType name="tns:BookRatingPT" />
+  </plnk:role>
+</plnk:partnerLinkType>
+
+</definitions>
