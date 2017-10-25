@@ -1,7 +1,6 @@
 package auxiliary;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.HashSet;
 
 import javax.xml.parsers.DocumentBuilder;
@@ -21,10 +20,10 @@ import bpelUtils.NodeName;
 
 public class TransformInput {
 
-	public static HashSet < String > activityNames = new HashSet < String >( );
+	private static HashSet < String > activityNames = new HashSet < String >( );
 
 
-	public static void nameElements( String filepath ) throws Exception {
+	private static void nameElements( String filepath ) throws Exception {
 
 		BPELFile bpelFile = new BPELFile( filepath );
 		Document oldbpelDoc = bpelFile.getDoc( );
@@ -51,7 +50,7 @@ public class TransformInput {
 	}
 
 
-	public static String getNewName( String activity ) {
+	private static String getNewName( String activity ) {
 
 		int i = activityNames.size( ) + 1;
 		String name = activity + "_" + i;
@@ -64,13 +63,10 @@ public class TransformInput {
 	}
 
 
-	public static void visitElement( Element el ) {
+	private static void visitElement( Element el ) {
 
 		// name parent
 		nameElement( el );
-		
-		
-
 		// visit children
 		NodeList nlist = el.getChildNodes( );
 		for ( int i =0 ; i< nlist.getLength( ); i++ ) {
@@ -79,14 +75,11 @@ public class TransformInput {
 				visitElement( (Element) child );
 			}
 		}
-
-		// return
 		return;
-
 	}
 
 
-	public static void nameElement( Element el ) {
+	private static void nameElement( Element el ) {
 
 		String nodeName = el.getTagName( ).toLowerCase( );
 		if (! ( nodeName.equals( NodeName.getNodeNameAsString(NodeName.EMPTY) ) 
@@ -110,9 +103,9 @@ public class TransformInput {
 	}
 
 
-	public static void main( String [ ] args ) throws Exception {
-
-		nameElements( "bpelHome/bpelPrograms/Travel_58/Travel.bpel" );
-	}
+//	public static void main( String [ ] args ) throws Exception {
+//
+//		nameElements( "bpelHome/bpelPrograms/Travel_58/Travel.bpel" );
+//	}
 
 }

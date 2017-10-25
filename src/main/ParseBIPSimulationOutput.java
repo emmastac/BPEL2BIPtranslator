@@ -49,11 +49,11 @@ public class ParseBIPSimulationOutput {
 		Map < String , ArrayList < String >> type2childNames = new HashMap < String , ArrayList < String >>( );
 		Map < String , String > name2type = new HashMap < String , String >( );
 
-		readModelStructure( Preferences.BPELprojectsPath + "/" + BIPprojectPath + "/check.bip" , type2childNames , name2type );
-		printModelStructure( Preferences.BPELprojectsPath + "/" + BIPprojectPath + "/ModelStructure.txt" , type2childNames , name2type );
+		readModelStructure( Preferences.getBPELprojectsPath() + "/" + BIPprojectPath + "/check.bip" , type2childNames , name2type );
+		printModelStructure( Preferences.getBPELprojectsPath() + "/" + BIPprojectPath + "/ModelStructure.txt" , type2childNames , name2type );
 
-		BufferedReader br = new BufferedReader( new FileReader( Preferences.BPELprojectsPath + "/" + BIPprojectPath + simulationOutputPath ) );
-		BufferedWriter bw = new BufferedWriter( new FileWriter( Preferences.BPELprojectsPath + "/" + BIPprojectPath + parsedOutputPath ) );
+		BufferedReader br = new BufferedReader( new FileReader( Preferences.getBPELprojectsPath() + "/" + BIPprojectPath + simulationOutputPath ) );
+		BufferedWriter bw = new BufferedWriter( new FileWriter( Preferences.getBPELprojectsPath() + "/" + BIPprojectPath + parsedOutputPath ) );
 
 		String strLine;
 		String c = "";

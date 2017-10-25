@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>BPEL2BIP_revised</name>
+	<name>BPEL2BIP_inGIT</name>
 	<comment></comment>
 	<projects>
 	</projects>
@@ -20,4 +20,16 @@
 		<nature>org.eclipse.jdt.core.javanature</nature>
 		<nature>org.eclipse.xtext.ui.shared.xtextNature</nature>
 	</natures>
+	<linkedResources>
+		<link>
+			<name>bpelHome/Airline.wsdl</name>
+			<type>1</type>
+			<locationURI>PARENT-2-ECLIPSE_HOME/svn-repos/bpeltimejournal/experiments/bpelHome/AmericanAirline_simpleMsgs/Airline.wsdl</locationURI>
+		</link>
+		<link>
+			<name>bpelHome/calc.wsdl</name>
+			<type>1</type>
+			<locationURI>PARENT-2-ECLIPSE_HOME/svn-repos/bpeltimejournal/experiments/translated2/gSoapExample/calc.wsdl</locationURI>
+		</link>
+	</linkedResources>
 </projectDescription>

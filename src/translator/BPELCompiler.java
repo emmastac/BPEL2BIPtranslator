@@ -45,10 +45,7 @@ public class BPELCompiler {
 	private static final String BPELNamespaceURI_2_0 = "http://docs.oasis-open.org/wsbpel/2.0/process/executable/";
 	private static final String BPELNamespaceURI_1_0 = "http://schemas.xmlsoap.org/ws/2003/03/business-process/";
 
-	// private static Path nspacedSourceFiles = Paths.get( System.getProperty(
-	// "user.home" )
-	// + "/Dropbox/eclipse_workspace/BIP2LATEX_revised2/docs/nspacedSourceFiles"
-	// );
+	
 	private static String buildFile = "/resources/build.sh";
 	private static String [ ] extSourceFiles = { "/resources/Standard.cpp" , "/resources/Standard.hpp" };
 
@@ -59,9 +56,6 @@ public class BPELCompiler {
 	private HashMap < String , ArrayList < String > > localNspace2locs = new HashMap < String , ArrayList < String > >( );
 	// e.g. BPELProjectsCustom/Airline_12/Airline.wsdl -> WSDLfileX
 	public HashMap < String , WSDLFile > locsToParsedFile = new HashMap < String , WSDLFile >( );
-
-	XMLDomParser bpelParser;
-
 	public BPELFile bpelFile;
 
 	private TemplateMaker tm;

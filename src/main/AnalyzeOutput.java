@@ -14,9 +14,9 @@ import java.util.regex.Pattern;
 public class AnalyzeOutput {
 
 
-	public static String BIP_PROJECTS_PATH = Preferences.BIPprojectsPath;
-	public static String BIP_PROJECTS_CFG_PATH = Preferences.BIPprojectsCfgPath;
-	public static String BIP_EXPLORATION_OUTPUT = Preferences.BIexplorationOutputPath;
+	public static String BIP_PROJECTS_PATH = Preferences.getBIPprojectsPath();
+	public static String BIP_PROJECTS_CFG_PATH = Preferences.getBIPprojectsCfgPath();
+	public static String BIP_EXPLORATION_OUTPUT = Preferences.getBIPexplorationOutputPath();
 
 
 	
@@ -132,11 +132,27 @@ public class AnalyzeOutput {
 			String [ ] pathParts = line.split( "," )[ 2 ].split( "\\/" );
 			String file = pathParts[ pathParts.length - 1 ];
 			bw.write( analyzeFile( file ) + '\n' );
-
 		}
 
 		bw.close( );
 		br.close( );
+
+	}
+	
+	public static void analyzeProject( String outFile , String bpelFile, String wsdlFile ) throws IOException {
+		
+		BufferedWriter bw = new BufferedWriter( new FileWriter( outFile ) );
+
+//		BufferedReader br = new BufferedReader( new FileReader( BIP_PROJECTS_CFG_PATH ) );
+//		String line = "";
+//		while ( ( line = br.readLine( ) ) != null && !line.trim( ).isEmpty( ) ) {
+//			String [ ] pathParts = line.split( "," )[ 2 ].split( "\\/" );
+			String file = bpelFile;
+			bw.write( analyzeFile( file ) + '\n' );
+//		}
+
+		bw.close( );
+//		br.close( );
 
 	}
 	

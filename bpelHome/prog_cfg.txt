@@ -1,4 +1,4 @@
-bpelPrograms/TravelApproval_41
+bpelPrograms/AmericanAirline_small
 
 bpelPrograms/BuyBook_55
 BPELProjectsCustom/AmericanAirlines_12

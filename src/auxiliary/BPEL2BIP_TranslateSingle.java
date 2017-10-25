@@ -7,7 +7,7 @@ import translator.BPELTransformer;
 
 public class BPEL2BIP_TranslateSingle {
 
-	public static String BIP_PROJECTS_PATH = Preferences.BIPprojectsPath;;
+	public static String BIP_PROJECTS_PATH = Preferences.getBIPprojectsPath();
 	public static String BPEL_PROJECTS_PATH = System.getProperty( "user.dir" ) + "/BPELPrograms";
 	public static int DEBUG = 0;
 	public static boolean PerformanceExperiment = false;
@@ -17,10 +17,10 @@ public class BPEL2BIP_TranslateSingle {
 	public static String BPELsingleProjectsPath = BPELsourceProjectsPath + "/BuyBook.bpel";
 	
 
-	public static void main( String [ ] args ) throws Exception {
-
-		singleTranslateMain();
-	}
+	//	public static void main( String [ ] args ) throws Exception {
+	//
+	//		singleTranslateMain();
+	//	}
 
 	public static void singleTranslateMain( ) throws Exception {
 
