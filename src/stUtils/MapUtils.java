@@ -18,12 +18,13 @@ public class MapUtils {
 
 		/* add the aggregated bip code at the end of the string */
 		if ( s != null && !s.equals( "" )) {
+			s = '\n'+s;
 			if ( ret.get( MapKeys.BIP_CODE ) != null && ret.get( MapKeys.BIP_CODE ).size( ) > 0 ) {
 				String tail = ( String ) ret.get( MapKeys.BIP_CODE ).remove( 0 );
 				ret.get( MapKeys.BIP_CODE ).add( tail + s );
 			} else {
 				ret.put( MapKeys.BIP_CODE , new ArrayList < Object >( 1 ) );
-				ret.get( MapKeys.BIP_CODE ).add( s );
+				ret.get( MapKeys.BIP_CODE ).add(  s );
 			}
 		}
 		return ret;

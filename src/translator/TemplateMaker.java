@@ -16,6 +16,8 @@ import java.util.TreeSet;
 
 import javax.xml.xpath.XPathExpressionException;
 
+import main.Preferences;
+
 import org.antlr.stringtemplate.StringTemplate;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -39,11 +41,14 @@ import bpelUtils.XMLFile;
 import com.sun.org.apache.xerces.internal.dom.DocumentImpl;
 
 public class TemplateMaker {
+	
+	public static final String bip4VerifTemplate = "/resources/bip.stg";
+	public static final String bip4ExecTemplate = "/resources/bip4Exec.stg";
 
 	TemplateList tmplInst;
 	private AttrFiller filler;
 	private BPELCompiler bcompiler;
-	private String templateFile = "/resources/bip.stg";
+	private String templateFile = null;
 	private HashMap < String , Integer > faults2codes = new HashMap < String , Integer >( );
 	private String [ ] standardFaults = new String [ ] { "ambiguousReceive" , "completionConditionFailure" , "conflictingReceive" ,
 			"conflictingRequest" , "correlationViolation" , "invalidBranchCondition" , "joinFailure" , "missingReply" , "missingRequest" ,
@@ -61,6 +66,12 @@ public class TemplateMaker {
 		this.filler = new AttrFiller( );
 		this.bcompiler = bcompiler;
 		tmplInst = new TemplateList( );
+		
+		if ( Preferences.isForExecution( ) ) {
+			templateFile = bip4ExecTemplate;
+		}else{
+			templateFile = bip4VerifTemplate;
+		}
 
 	}
 
@@ -1784,7 +1795,6 @@ public class TemplateMaker {
 	public HashMap < String , ArrayList > applyCOPY( Element elem , ArrayDeque < HashMap < String , ArrayList >> stack ) throws Exception {
 
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "COPY" );
-		String s = "\n";
 		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
 
 		ret.put( MapKeys.READ_PORTS , new ArrayList( ) );
@@ -1808,8 +1818,7 @@ public class TemplateMaker {
 		Element toElement = XMLFile.getChildrenByTagLocalName( elem , "to" ).get( 0 );
 		RwPort writePort = createWritePort( compName , toElement , template , stack , ret );
 		// /////////////////////////////////////////////////////////
-		s += "\n\n" + template.toString( );
-		ret = MapUtils.addToBIPCode( s , ret );
+		ret = MapUtils.addToBIPCode( template.toString( ) , ret );
 		return ret;
 	}
 
@@ -5371,8 +5380,8 @@ public class TemplateMaker {
 		if ( tmplInst.addInstance( templateName ) ) {
 			StringTemplate template = AttrFiller.getTemplate( templateFile , "CHKRC5" );
 			// ima,d
-			template = addEnumerationToTemplate( template , "csHList" , 1 , csHNum );
-			template = addEnumerationToTemplate( template , "csEList" , csHNum + 1 , csHNum + csENum ); // ima
+			template = addEnumerationToTemplate( template , "csHList" , 1 , csHNum ); // correlation sets here
+			template = addEnumerationToTemplate( template , "csEList" , csHNum + 1 , csHNum + csENum ); // correlation sets higher
 			template = addEnumerationToTemplate( template , "fltList" , csHNum + csENum + 1 , csHNum + csENum + 3 );// ima
 
 			template = addEnumerationToTemplate( template , "cfHList" , csHNum + 1 , csHNum + cfHNum ); // d

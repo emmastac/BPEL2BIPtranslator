@@ -1,4 +1,7 @@
 #include <stdio.h>
+#include<iostream>
+#include<set>
+#include<string>
 
 long bool_sizeof(const bool& q){
 	return 1;
@@ -47,3 +50,47 @@ void updateVar(int& to, int& from...){
 	}
 }
 
+void open_msg_file(int id){
+
+string file;
+if(id==11){
+	file = "airline.FlightAvailability.req.xml";
+} else{
+	file = "airline.FlightTicketCallback.req.xml";
+}
+string line;
+  ifstream myfile (file);
+  if (myfile.is_open())
+  {
+    while ( getline (myfile,line) )
+    {
+      cout << line << '\n';
+    }
+    myfile.close();
+  }
+}
+
+
+
+//void Rectangle::set_values (string x,int y) {
+//  name = x;
+//  initialize = y;
+//}
+//
+//string getName (void){
+//
+//	return name;
+//}
+//int getInitialize (void){
+//			return initialize;
+//}
+
+void CS_setValues(CorrelationSet& cs,string s,int i){
+	cs.name=s; cs.initialize=i;
+}
+int CS_getInitialize(CorrelationSet cs){
+	return cs.initialize;
+}
+string CS_getName(CorrelationSet cs){
+	return cs.name;
+}

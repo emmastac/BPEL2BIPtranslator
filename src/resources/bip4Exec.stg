@@ -30,8 +30,8 @@ selectionFailure()::="16"
 
 e0b0portList(intList) ::=" $first(intList):firste0b0port()$$rest(intList):e0b0port()$"
 
-basic_data()::= "data int id "
-basic_init(id)::= " $if(id)$ id=$id$ $else$ id=Id $endif$; "
+basic_data( )::= "data int id, faultCode "
+basic_init( id )::= "  faultCode=0; $if(id)$ id=$id$ $else$ id=Id $endif$;"
 
 header_HPP()::=<<
 
@@ -61,13 +61,12 @@ const data int COUNT_MAX = 2
 const data int DEBUG = $debug$
 
 const data int OBS_TERM = 1
-const data int OBS_BLOCK = 1
 const data int OBS_UNREACHABLE_CODE = 1
 const data int OBS_INCOMPL_ASYN = 1
 
 //extern data type bool
 
-
+extern function updateVar(int,int)
 extern function updateVar(int,int)
 extern function rdvar_down_1( int ,int )
 extern function rdvar_down_2( int ,int, int, int )
@@ -114,8 +113,10 @@ FH_CTRL()::=<<
 
 atom type fh_ctrl(int Id)
 
-export port $ebport()$ start_handle(), start(), disable_in()
-place INIT, DIS, START
+	export port $ebport()$ start_handle(), start(), disable_in()
+	
+	place INIT, DIS, START
+	
 initial to INIT do{  }
 on start_handle from INIT to START do{  }
 on disable_in from START to DIS
@@ -134,9 +135,9 @@ atom type scope_cntr(int Id, int ScopeCompenId)
 	
 	export port e0b0port start(), fin(), interrupt(), term(), disable(), allow(), done(), rethrow_o(), interrupt_o(), exit(), MAEHfin(), term1(), term2(), term3(), termTH(), turnOff(), offIMA(), 
 			startFH(), startTH(), FHfin(), THfin(), fault_i(), onIMA(), CHfin(), fault(), success(), failure()
-place IDLE, START, EXIT, INIT, RUN, CH_FIN, RVRS_FAIL, PRE_TH, TH_RUN, TH_FAULT, FH_FAULTED, CH_TERM,CH_COMPL,CH_FAULT, FH_COMPL, FIN, FAIL, FAULT_I, PRE_FH, FH_RUN, FH_TERM, CH_RUN, ONIMA, MAEH_COMPL, FH_FAULT
+place IDLE, START, EXIT, INIT, RUN, CH_FIN, RVRS_FAIL, PRE_TH, TH_RUN, TH_FAULT, FH_FAULTED,CH_COMPL,CH_FAULT, FH_COMPL, FIN, FAIL, FAULT_I, PRE_FH, FH_RUN, FH_TERM, CH_RUN, ONIMA, MAEH_COMPL, FH_FAULT
 
-initial to INIT, IDLE do{ allowed=1; idd=Id; scopeCompenId = ScopeCompenId; }
+initial to INIT, IDLE do{ allowed=1; idd=Id; scopeCompenId = ScopeCompenId; compenId=-1; }
 on done from IDLE to IDLE do{ allowed=1;   if(DEBUG>0) then printf("done from scope %d \n", idd); fi}
 
 on start from INIT to START 
@@ -205,15 +206,12 @@ on allow 	from CH_RUN to CH_RUN provided(allowed==1) do{ allowed=0; }
 on CHfin 	from CH_RUN to CH_COMPL do{ if(DEBUG>0) then  printf("CHfin in scope %d \n", idd); fi }
 on exit 	from CH_RUN to EXIT
 on faultComp from CH_RUN to CH_FIN
-//on termRvrs from CH_RUN to CH_TERM
 on rethrow_o from CH_RUN to EXIT
 
 on offIMA from CH_COMPL to CH_FIN
 on onIMA from CH_COMPL to CH_FAULT
 
 on faultComp from CH_FAULT to CH_FIN
-
-on CHfin from CH_TERM to CH_FIN
 
 on reversed from CH_FIN to FIN provided(scopeCompen != 1) 
 on reversedScope from CH_FIN to FIN provided(scopeCompen == 1)do { scopeCompen=0; }
@@ -868,6 +866,8 @@ connector type CHKRC5$connName$(
 			else
 				$fltList:{ ima.msg$it$=msg$it$; }$
 			fi
+		cout<< '\n' << d.msg1 <<" ,"<< msg1 <<" ," << msg2 <<" ," << msg3 << '\n';
+			
 	}
 end
 >>
@@ -1041,8 +1041,8 @@ end
 >>
 
 
-STD_PORTS( )::=<<
-export port $ebport()$ start(), fin(), interrupt(), term(), disable(), allow(), done()
+STD_PORTS( noAllow )::=<<
+export port $ebport()$ start(), fin(), interrupt(), term(), disable() $if(!noAllow)$, allow(), done() $endif$
 >>
 
 
@@ -1225,7 +1225,7 @@ atom type dhs_$name$(int Id)
 	};separator="\n"$
 
 		place INIT, FAULT
-	initial to INIT do{ id=Id;
+	initial to INIT do{ $basic_init()$
 		$dataList:{ $it$=0;};separator="\n"$
 		$plList:{ // $it$_pRole=false;};separator="\n"$
 		$meList:{ me_$it$=false;};separator="\n"$ $if(meList)$//for conflicting Request, if true IMA is open $endif$
@@ -1260,7 +1260,7 @@ LT( id, suppJoinFail, joinCondition, linkNames, countLinks)::=<<
 
 atom type lt_$id$()
 
-	$basic_data()$, compensateId $if(suppJoinFail)$, faultCode $endif$ $linkNames:{, $first(it)$}$
+	$basic_data()$, compensateId  $linkNames:{, $first(it)$}$
 	data bool eval
 	export port $ebport(intNum=1)$ reverse(compensateId),reversed(compensateId), fault(faultCode) //, rvrs_termed(compensateId)
 	export port $ebport(intNum=countLinks)$ readLink_lt_$id$($linkNames:{$first(it)$};separator=","$)
@@ -1270,7 +1270,7 @@ atom type lt_$id$()
 	$STD_PORTS()$
 	place $STD_PLACES()$ ,READY, PRETERM, RVRS, RVRSALL, RVRSEND, RVRSD
 	
-	initial to INIT do{ $basic_init(id=id)$ eval = true; $linkNames:{ $first(it)$=-1;};separator=" "$}
+	initial to INIT do{ $basic_init(id=id)$ eval = true; $linkNames:{ $first(it)$=-1;};separator=" "$ ;}
 	
 	 //internal from ALLOW to READY
 	on readLink_lt_$id$ from READY to READY provided ($linkNames:{$first(it)$==-1};separator="||"$)	do{ 
@@ -1349,20 +1349,20 @@ end
 
 COMPENSATE(scopeName, id, scopeCompenId) ::=<<
 atom type Compensate$scopeName$_$id$()
-	$basic_data()$, componentid, faultid, scopeCompenId
+	$basic_data()$, componentid, scopeCompenId
 
-	export port $ebport(intNum=1)$ fault(faultid)
+	export port $ebport(intNum=1)$ fault(faultCode)
 	$STD_PORTS()$
 
 	export port $ebport(intNum=2)$ compensate$if(scopeName)$Scope$endif$(componentid, scopeCompenId)
-	export port $ebport(intNum=2)$ infault(componentid,faultid)
+	export port $ebport(intNum=2)$ infault(componentid,faultCode)
 	export port $ebport(intNum=1)$ endrvrs(componentid)
 	export port $ebport(intNum=1)$ termComp(componentid)
 
 
 place $STD_PLACES()$, RUN1, RUN2, PREFAULT, TERMCOMP, INTERMED
 
-initial to INIT do{$basic_init(id=id)$ faultid=0; componentid=id; scopeCompenId=$scopeCompenId$; }
+initial to INIT do{$basic_init(id=id)$ componentid=id; scopeCompenId=$scopeCompenId$; }
 
 on compensate$if(scopeName)$Scope$endif$ from ALLOW to RUN2 
 
@@ -1378,8 +1378,8 @@ on term from PREFAULT to TERMCOMP
 on endrvrs from TERMCOMP to INTERMED
 on interrupt from TERMCOMP to FIN
 
-on fault from INTERMED to FIN provided (faultid!=0)
-internal from INTERMED to FIN provided (faultid==0)
+on fault from INTERMED to FIN provided (faultCode!=0)
+internal from INTERMED to FIN provided (faultCode==0)
 on interrupt from INTERMED to FIN
 on term from INTERMED to FIN
 
@@ -1392,7 +1392,7 @@ end
 EVAL2( id, varTransLists, count, expression, retType, retPort, initEval)::=<<
 
 atom type eval2_$id$()
-	$basic_data()$, faultCode	
+	$basic_data()$	
 	data $retType$ eval
 	data bool subLanguageExecutionFault
 	$varTransLists:{ data int $rest(rest(rest(rest(it)))):{$it$};separator=","$};separator="\n"$
@@ -1403,7 +1403,7 @@ atom type eval2_$id$()
 	
 	place $STD_PLACES()$, EVAL1, OUT $if(varTransLists)$,$endif$$varTransLists:{EVAL$first(rest(rest(rest(it))))$};separator=","$
 
-	initial to INIT do {$if(initEval)$eval=$initEval$; $endif$ subLanguageExecutionFault=false;  $basic_init(id=id)$}
+	initial to INIT do {$if(initEval)$eval=$initEval$; $endif$ subLanguageExecutionFault=false;  $basic_init(id=id)$ ;}
 	
 	internal from ALLOW to EVAL1
 	$varTransLists:{
@@ -1441,7 +1441,7 @@ atom type eval_$id$()
 	
 	place INIT, START1, FIN, EVAL1, OUT $if(varTransLists)$,$endif$$varTransLists:{EVAL$first(rest(rest(rest(it))))$};separator=","$
 
-	initial to INIT do {$if(initEval)$eval=$initEval$; $endif$ subLanguageExecutionFault=false;  }
+	initial to INIT do {$if(initEval)$eval=$initEval$; $endif$ subLanguageExecutionFault=false;  ;}
 	on start from INIT to START1
 	$if(withAllow)$on allow $else$ internal $endif$ from START1 to EVAL1
 	$varTransLists:{on read_$first(rest(it))$ from EVAL$first(rest(rest(it)))$ to EVAL$first(rest(rest(rest(it))))$ 
@@ -1472,7 +1472,7 @@ end
 BOOLEVAL( id , expression)::=<<
 
 atom type booleval_$id$()
-	$basic_data()$, faultCode	
+	$basic_data()$	
 	data bool eval
 	$STD_PORTS()$
 	port $ebport()$ isFalse(), isTrue(), isFault_subLang(), isFault_uninitVar(), isFault_invExp()
@@ -1481,7 +1481,7 @@ atom type booleval_$id$()
 	
 	place $STD_PLACES()$, PRE_READ1, PRE_EVAL, EVAL, FAULT
 
-	initial to INIT do { $basic_init(id=id)$}
+	initial to INIT do { $basic_init(id=id)$ ;}
 	
 	internal from ALLOW to PRE_READ1
 	internal from PRE_READ1 to PRE_EVAL $!TODO: readVariables here !$
@@ -1512,7 +1512,7 @@ IF(id, startdone, expressions, hasElse, faults, invalidExpressionValue, uninitia
 
 
 atom type if_$id$()
-	$basic_data()$, faultCode
+	$basic_data()$
 	port $ebport()$ fault1(), fault2(), fault3(), noFault(), isFalse()
 	$STD_PORTS()$ $startdone:{, trigger$first(it)$() }$ 
 	$if(hasElse)$, trigger$hasElse$() $endif$
@@ -1520,7 +1520,7 @@ atom type if_$id$()
 	place $STD_PLACES()$ ,FAULT $startdone:{, EVAL$first(it)$, NF$first(it)$, FA$first(it)$ }$
 		$if(hasElse)$, EVAL$hasElse$, NF$hasElse$, POST$hasElse$ $endif$, LAST
 	
-	initial to INIT do{ $basic_init(id=id)$ }
+	initial to INIT do{ $basic_init(id=id)$ ;}
 	$STD_TRANS()$	
 	
 	//on start from INIT to START
@@ -1560,7 +1560,7 @@ end
 SWITCH( id, startdone, hasElse)::=<<
 
 atom type switch_$id$()
-	$basic_data()$, faultCode
+	$basic_data()$
 	data bool eval
 	$STD_PORTS()$ $startdone:{, trigger$i$(), start_eval$i$() }$ 
 	$if(hasElse)$, trigger$hasElse$() $endif$
@@ -1615,7 +1615,7 @@ WHILE(id, varsRPorts, expression, invalidExpressionValue, subLanguageExecutionFa
 
 
 atom type while_$id$()
-	$basic_data()$, count, faultCode
+	$basic_data()$, count
 	$if(rest(varsRPorts))$ data int $rest(varsRPorts):{$it$};separator=","$ , $rest(varsRPorts):{$it$_prev};separator=","$ $endif$
 	$if(rest(varsRPorts))$ export port $ebport(intNum=first(varsRPorts))$ read_while_$id$($rest(varsRPorts):{$it$};separator=","$) $endif$
 	$STD_PORTS()$, trigger(), done_in(), turnedOff()
@@ -1626,7 +1626,7 @@ atom type while_$id$()
 	
 	initial to INIT do{ $basic_init(id=id)$
 		$rest(varsRPorts):{$it$=0;  $it$_prev=0; }$ 
-		printf(" OBS_TERM: initial while_%d ,", id);
+		if(OBS_TERM==1) then printf(" OBS_TERM: initial while_%d ,", id); fi
 	} 
 	on start from INIT to START
 	on disable from INIT to FIN
@@ -1680,7 +1680,7 @@ FOREACH(id, faults, parallel, successfulBranchesOnly, expression1, expression2, 
 
 
 atom type forEach_$id$()
-	$basic_data()$, startCount, finalCount, completMax, completCount, nextCount, started, ended, faultCode
+	$basic_data()$, startCount, finalCount, completMax, completCount, nextCount, started, ended
 	$STD_PORTS()$, trigger(), success_in(), failure_in(), turnedOff()
 	port $ebport()$  noFault() $if(invalidExpressionValue)$, fault1() $endif$ $if(uninitializedVariable)$, fault2() $endif$ $if(subLanguageExecutionFault)$, fault3() $endif$
 			$if(invalidBranchCondition)$, fault4() $endif$ $if(completionConditionFailure)$, fault5() $endif$
@@ -1753,7 +1753,7 @@ REPEATUNTIL(id, faults, expression, invalidExpressionValue, uninitializedVariabl
 
 
 atom type repeatUntil_$id$()
-	$basic_data()$, count, faultCode
+	$basic_data()$, count
 	$STD_PORTS()$, trigger(), done_in(), turnedOff()
 	port $ebport()$ isTrue(), isFalse() $if(invalidExpressionValue)$, fault1() $endif$ $if(uninitializedVariable)$, fault2() $endif$ $if(subLanguageExecutionFault)$, fault3() $endif$	
 	$if(faults)$ export port $ebport(intNum=1)$ fault(faultCode) $endif$
@@ -1879,7 +1879,7 @@ RECEIVE( id, varsWPorts, plop, initiateList, isRcvIO, joinFault, createInstance)
 //joinFault = true, if some initiateValue is join	
 atom type receive_$id$()
 
-	 $basic_data()$, faultCode, inMsg $rest(varsWPorts):{, $it$}$ $trunc(initiateList):{, initiate$i$}$
+	 $basic_data()$, inMsg $rest(varsWPorts):{, $it$}$ $trunc(initiateList):{, initiate$i$}$
 	 data bool conflReceive, ambigReceive ,correlationViolation, conflRequest 
 	$STD_PORTS()$, term_receive_$id$(), checkAR_$plop$()
 	//*******
@@ -1888,7 +1888,7 @@ atom type receive_$id$()
 	//*******
 	export port $ebport(intNum=last(initiateList),boolNum=3)$ check_receive_$id$($trunc(initiateList):{initiate$i$};separator=","$ 
 		$if(initiateList)$, $endif$ correlationViolation, conflReceive, conflRequest)
-	$if(isRcvIO)$ export port $ebport()$ openIMA_receive_$id$() $else$ export port $ebport()$ cont() $endif$
+	$if(isRcvIO)$ export port $ebport()$ openIMA_receive_$id$() $endif$
 	export port $ebport(intNum=1)$ rcvMsg_receive_$id$(inMsg)
 	export port $ebport(intNum=first(varsWPorts))$ write_receive_$id$($rest(varsWPorts):{$it$};separator=","$)
 	
@@ -1896,19 +1896,23 @@ place $STD_PLACES()$, CHKD, CHK,PREFAULT, PREOPEN, PRETERM, DONE2, RCV, WAIT, PR
 
 	initial to INIT  do {$basic_init(id=id)$ $rest(varsWPorts):{ $it$=1;};separator=" "$
 		$trunc(initiateList):{ initiate$i$=$it$;};separator=" "$
-		printf("deadcode: initial %d,",id);
+		if(OBS_UNREACHABLE_CODE==1) then printf("deadcode: initial %d,",id); fi
+		conflReceive=false; ambigReceive=false; correlationViolation=false; conflRequest=false;
+		inMsg = 0; faultCode = -1;
 	}
 	
-	on start from INIT to START do { printf("for deadcode observer: started %id,",id); }
+	on start from INIT to START do { if(OBS_UNREACHABLE_CODE==1) then printf("for deadcode observer: started %id,",id); fi }
 	on disable from INIT to FIN
 	on term from INIT to FIN
 	on interrupt from INIT to FIN
 	
-	$if(createInstance)$ internal from START to CHK 
-	$else$ on allow from START to CHK
-	on disable from START to FIN
-	on term from START to FIN
-	on interrupt from START to FIN
+	$if(createInstance)$ 
+		internal from START to CHK 
+	$else$ 
+		on allow from START to CHK
+		on disable from START to FIN
+		on term from START to FIN
+		on interrupt from START to FIN
 	$endif$
 		
 	on check_receive_$id$ from CHK to CHKD do{ 
@@ -1920,18 +1924,20 @@ place $STD_PLACES()$, CHKD, CHK,PREFAULT, PREOPEN, PRETERM, DONE2, RCV, WAIT, PR
 	on term from CHK to DONE2
 	on interrupt from CHK to FIN
 
-	$if(createInstance)$ internal from CHKD to PRETERM2 provided(faultCode!=0)
-	internal from CHKD to WAIT provided(faultCode==0)
+	$if(createInstance)$ 
+		internal from CHKD to PRETERM2 provided(faultCode!=0)
+		internal from CHKD to WAIT provided(faultCode==0)
 	$else$
-	on done from CHKD to WAIT provided(faultCode==0)
-	on done from CHKD to PRETERM2 provided(faultCode!=0)
-	on disable from CHKD to PRETERM
-	on term from CHKD to PRETERM
-	on interrupt from CHKD to FIN
+		on done from CHKD to WAIT provided(faultCode==0)
+		on done from CHKD to PRETERM2 provided(faultCode!=0)
+		on disable from CHKD to PRETERM
+		on term from CHKD to PRETERM
+		on interrupt from CHKD to FIN
 	$endif$
 	
 	on rcvMsg_receive_$id$ from WAIT to RCV do{ 
 		// [msg = parseInMsg(inMsg)	
+		open_msg_file(id);
 		$if(initiateList)$ //checkMissingCorrelation
 		if($trunc(initiateList):{ initiate$i$==2 };separator="||"$) then faultCode=$correlationViolation()$; fi
 		$endif$
@@ -1956,9 +1962,11 @@ place $STD_PLACES()$, CHKD, CHK,PREFAULT, PREOPEN, PRETERM, DONE2, RCV, WAIT, PR
 	on interrupt from ALLOW to FIN
 	on term from ALLOW to PRETERM
 	
-	$if(isRcvIO)$ on openIMA_receive_$id$ from PREOPEN to PRETERM 
-	$else$ internal from PREOPEN to PRETERM$endif$
-	on interrupt from PREOPEN to FIN
+	$if(isRcvIO)$ 
+		on openIMA_receive_$id$ from PREOPEN to PRETERM 
+	$else$ 
+		internal from PREOPEN to PRETERM$endif$
+		on interrupt from PREOPEN to FIN
 	
 	on term_receive_$id$ from PRETERM to DONE2 
 	on interrupt from PRETERM to FIN
@@ -1979,7 +1987,7 @@ LISTN(id, varsWPorts, plop, initiateList, isRcvIO, numMsg, withExit, createInsta
 //initiate = 1 (if yes), 2 (if join), 3 (if no) 
 atom type listn_$id$()
 
-	$basic_data()$, tOff, msgRcvd, faultCode, inMsg $rest(varsWPorts):{, $it$}$ $trunc(initiateList):{, initiate$i$}$
+	$basic_data()$, tOff, msgRcvd, inMsg $rest(varsWPorts):{, $it$}$ $trunc(initiateList):{, initiate$i$}$
 	 data bool conflReceive, ambigReceive ,correlationViolation, conflRequest 
 	$STD_PORTS()$, term_listn_$id$(), checkAR_$plop$(), turnOff(), turnedOff(), trigger()
 	 export port $ebport(intNum=1)$ fault(faultCode)
@@ -1993,12 +2001,12 @@ place $STD_PLACES()$, CHKD, CONT, TURNOFF, CHK, PREOPEN, PRETERM, DONE2, RCV, WA
 
 	initial to INIT, TURNOFF  do {$basic_init(id=id)$ $rest(varsWPorts):{ $it$=1;};separator=" "$
 		$trunc(initiateList):{ initiate$i$=$it$;};separator=" "$
-		printf("deadcode: initial %d,",id);
+		if(OBS_UNREACHABLE_CODE==1) then printf("deadcode: initial %d,",id); fi
 	}
 	
 	on turnOff from TURNOFF to TURNOFF provided(tOff==0) do{ tOff = 1;}
 	
-	on start from INIT to START do { printf("for deadcode observer: started %id,",id); }
+	on start from INIT to START do { if(OBS_UNREACHABLE_CODE==1) then printf("for deadcode observer: started %id,",id); fi }
 	on disable from INIT to FIN
 	on term from INIT to FIN
 	on interrupt from INIT to FIN
@@ -2082,7 +2090,7 @@ REPLY( id, varsRPorts, initiateList) ::=<<
 
 atom type reply_$id$()
 
-	$basic_data()$, outMsg, faultCode $rest(varsRPorts):{, $it$}$  $trunc(initiateList):{, initiate$i$ }$
+	$basic_data()$, outMsg $rest(varsRPorts):{, $it$}$  $trunc(initiateList):{, initiate$i$ }$
 	data bool missingRequest, correlationViolation
 	$STD_PORTS()$, closeIMA_reply_$id$()
 	export port $ebport(intNum=1)$ fault(faultCode)
@@ -2094,7 +2102,7 @@ atom type reply_$id$()
 	place $STD_PLACES()$, S3,S4, FAULT
 
 	initial to INIT do {$basic_init(id=id)$ $trunc(initiateList):{ initiate$i$=$it$; }$ 
-	printf("deadcode: initial %d,",id); }
+	if(OBS_UNREACHABLE_CODE==1) then printf("deadcode: initial %d,",id); fi }
 	on check_reply_$id$ from ALLOW to S3 do{ }
 	
 	//reply is now enabled if not faulted
@@ -2119,93 +2127,94 @@ INVOKE(id, varsWPorts, varsRPorts, initiateListIn, initiateListOut, faultName, f
 
 atom type invoke_$id$()
 
-$basic_data()$, inMsg, outMsg, faultCode $if(initiateListIn)$  $trunc(initiateListIn):{, initiateIn$i$}$$endif$ $if(initiateListOut)$  $trunc(initiateListOut):{, initiateOut$i$}$$endif$
-			$if(rest(varsWPorts))$ $rest(varsWPorts):{, $it$_in}$ $endif$ 
-			$if(rest(varsRPorts))$ $rest(varsRPorts):{, $it$_out}$ $endif$
-	$if(initiateListIn)$data bool correlationViolation$else$$if(initiateListOut)$data bool correlationViolation$endif$$endif$
-	$if(!initializePRole)$data int uninPRole$endif$
+	$basic_data()$, inMsg, outMsg $if(initiateListIn)$  $trunc(initiateListIn):{, initiateIn$i$}$$endif$ $if(initiateListOut)$  $trunc(initiateListOut):{, initiateOut$i$}$$endif$
+	$if(rest(varsWPorts))$ 
+		$rest(varsWPorts):{, $it$_in}$ $endif$ 
+	$if(rest(varsRPorts))$ 
+		$rest(varsRPorts):{, $it$_out}$ $endif$
+	$if(initiateListIn)$
+		data bool correlationViolation$else$$if(initiateListOut)$data bool correlationViolation$endif$$endif$
+	$if(!initializePRole)$
+		data int uninPRole$endif$
 	
 	$if(!initializePRole)$export port $ebport(intNum=1)$ checkPR_invoke_$id$(uninPRole)$endif$
 	$if(varsRPorts)$ export $endif$ port $ebport(intNum=first(varsRPorts))$ read_invoke_$id$($rest(varsRPorts):{$it$_out};separator=","$) 
 	export port $ebport(intNum=1)$ sndMsg_invoke_$id$(outMsg)
 	$if(rest(varsWPorts))$
- port $ebport()$ fault_invalidVariables()
- port $ebport()$ validVariables()
-export port $ebport(intNum=first(varsWPorts))$ write_invoke_$id$($rest(varsWPorts):{$it$_in};separator=","$)
-export port $ebport(intNum=1)$ rcvMsg_invoke_$id$(inMsg)
-$endif$
+		 port $ebport()$ fault_invalidVariables()
+	 	port $ebport()$ validVariables()
+		export port $ebport(intNum=first(varsWPorts))$ write_invoke_$id$($rest(varsWPorts):{$it$_in};separator=","$)
+		export port $ebport(intNum=1)$ rcvMsg_invoke_$id$(inMsg)
+	$endif$
 	
-	$if(initiateListIn)$export port $ebport(boolNum=extra)$ checkcvIn_invoke_$id$( $initiateListIn:{initiate$i$};separator=","$, correlationViolation, undefinedViolation)
+	$if(initiateListIn)$
+		export port $ebport(boolNum=extra)$ checkcvIn_invoke_$id$( $initiateListIn:{initiate$i$};separator=","$, correlationViolation, undefinedViolation)
 	$else$
 		$if(initiateListOut)$export port $ebport(boolNum=extra)$ checkcvOut_invoke_$id$( $initiateListOut:{initiate$i$};separator=","$, correlationViolation, undefinedViolation) $endif$
 	$endif$
 	export port $ebport(intNum=1)$ fault(faultCode) 
-	export port $ebport()$  cont()
 	$STD_PORTS()$
 	
 	place $STD_PLACES()$, PRECHECK2, POSTCHECK1, PREREAD, CONTINUE1, PREFAULT, PREWRITE, PRECHECK3, CONTINUE2, DONE, TERMED, DISABLED, SND, RECV
 	
 	initial to INIT do { $basic_init(id=id)$ $initiateListIn:{ initiate$i$=$it$;};separator="\n"$
-	$initiateListOut:{ initiate$i$=$it$;};separator="\n"$
-	$rest(varsWPorts):{ $it$_in=1;};separator="\n"$
-	printf("deadcode: initial %d,",id);
+		$initiateListOut:{ initiate$i$=$it$;};separator="\n"$
+		$rest(varsWPorts):{ $it$_in=1;};separator="\n"$
+		if(OBS_UNREACHABLE_CODE==1) then printf("deadcode: initial %d,",id); fi
 	}
 	
 	$if(!initializePRole)$
-	on checkPR_invoke_$id$	from ALLOW to POSTCHECK1 do{ if(uninPRole) then faultCode=$uninitializedPartnerRole()$; fi } 
-	on fault from POSTCHECK1 to TERMED provided (faultCode!=0)
-	internal from POSTCHECK1 to PRECHECK2 provided (faultCode==0)
-	$STD_TRANSFIN(place="POSTCHECK1")$ 
+		on checkPR_invoke_$id$	from ALLOW to POSTCHECK1 do{ if(uninPRole) then faultCode=$uninitializedPartnerRole()$; fi } 
+		on fault from POSTCHECK1 to TERMED provided (faultCode!=0)
+		internal from POSTCHECK1 to PRECHECK2 provided (faultCode==0)
+		$STD_TRANSFIN(place="POSTCHECK1")$ 
 	$else$
-	internal	from ALLOW to PRECHECK2
+		internal	from ALLOW to PRECHECK2
 	$endif$
 	
 	$if(initiateListOut)$
-	on checkcv_invoke_$id$ 	from PRECHECK2 to PREREAD do{ if(correlationViolation || undefinedViolation) then faultCode=$correlationViolation()$; fi } 	
-	$STD_TRANSFIN(place="PRECHECK2")$ 
-	
-	on cont from PREREAD to CONTINUE1 provided (faultCode==0)
-	internal from PREREAD to PREFAULT provided (faultCode!=0)
-	$STD_TRANSFIN(place="PREREAD")$ 
-	
-	on read_invoke_$id$ from CONTINUE1 to PRECHECK3 do{ if($rest(varsRPorts):{$it$_out<1};separator="||"$) then faultCode=$uninitializedVariable()$; fi }
-	$STD_TRANSFIN(place="CONTINUE1")$ 
+		on checkcv_invoke_$id$ 	from PRECHECK2 to PREREAD do{ if(correlationViolation || undefinedViolation) then faultCode=$correlationViolation()$; fi } 	
+		$STD_TRANSFIN(place="PRECHECK2")$ 
+		
+		internal from PREREAD to CONTINUE1 provided (faultCode==0)
+		internal from PREREAD to PREFAULT provided (faultCode!=0)
+		$STD_TRANSFIN(place="PREREAD")$ 
+		
+		on read_invoke_$id$ from CONTINUE1 to PRECHECK3 do{ if($rest(varsRPorts):{$it$_out<1};separator="||"$) then faultCode=$uninitializedVariable()$; fi }
+		$STD_TRANSFIN(place="CONTINUE1")$ 
 	$else$
-	on read_invoke_$id$ from PRECHECK2 to PRECHECK3 do{ if($rest(varsRPorts):{$it$_out<1};separator="||"$) then faultCode=$uninitializedVariable()$; fi }
-	$STD_TRANSFIN(place="PRECHECK2")$ 
+		on read_invoke_$id$ from PRECHECK2 to PRECHECK3 do{ if($rest(varsRPorts):{$it$_out<1};separator="||"$) then faultCode=$uninitializedVariable()$; fi }
+		$STD_TRANSFIN(place="PRECHECK2")$ 
 	$endif$
-
-
 	on sndMsg_invoke_$id$ from PRECHECK3 to SND
 	$STD_TRANSFIN(place="PRECHECK3")$
 
 	$if(rest(varsWPorts))$
+		on rcvMsg_invoke_$id$ from SND to RECV do{  }//[faultCode,inVar]=parseInMsg(inMsg);
+		$STD_TRANSFIN(place="SND")$
+		$if(initiateListIn)$ //varsWPorts && initiateListIn
+			on checkcv_invoke_$id$ from RECV to CONTINUE2 do{ if(correlationViolation || undefinedViolation) then faultCode=$correlationViolation()$; fi }
+			$STD_TRANSFIN(place="RECV")$
+		$else$//varsWPorts && !initiateListIn && !initiateListInOut	
+			internal from  RECV to CONTINUE2	
+		$endif$
 	
-	on rcvMsg_invoke_$id$ from SND to RECV do{  }//[faultCode,inVar]=parseInMsg(inMsg);
-	$STD_TRANSFIN(place="SND")$
+		on fault_invalidVariables from CONTINUE2 to PREFAULT provided(faultCode==0) do { faultCode=$invalidVariables()$; }
+		on validVariables from CONTINUE2 to PREWRITE  provided (faultCode==0)
+		internal from CONTINUE2 to PREFAULT provided (faultCode!=0)
+	
+		$if(faultCode)$
+			on fault_$faultName$ from CONTINUE2 to PREFAULT provided (faultCode==0) 
+		$endif$
+	
+		on fault from PREFAULT to END
+		$STD_TRANSFIN(place="PREFAULT")$
 
-	$if(initiateListIn)$ //varsWPorts && initiateListIn
-	
-	on checkcv_invoke_$id$ from RECV to CONTINUE2 do{ if(correlationViolation || undefinedViolation) then faultCode=$correlationViolation()$; fi }
-	$STD_TRANSFIN(place="RECV")$
-	
-	$else$//varsWPorts && !initiateListIn && !initiateListInOut	
-	internal from  RECV to CONTINUE2	
-	$endif$
-	
-	on fault_invalidVariables from CONTINUE2 to PREFAULT provided(faultCode==0) do { faultCode=$invalidVariables()$; }
-	on validVariables from CONTINUE2 to PREWRITE  provided (faultCode==0)
-	internal from CONTINUE2 to PREFAULT provided (faultCode!=0)
-	$if(faultCode)$on fault_$faultName$ from CONTINUE2 to PREFAULT provided (faultCode==0) $endif$
-	
-	on fault from PREFAULT to END
-	$STD_TRANSFIN(place="PREFAULT")$
-
-	on write_invoke_$id$ from PREWRITE to END
-	$STD_TRANSFIN(place="PREWRITE")$
+		on write_invoke_$id$ from PREWRITE to END
+		$STD_TRANSFIN(place="PREWRITE")$
 
 	$else$ //!varsWPorts
-	internal from SND to END
+		internal from SND to END
 	$endif$
 	$STD_TRANS(deadcode=1)$
 end
@@ -2219,7 +2228,7 @@ atom type Exit_$id$()
 	$STD_PORTS()$, exit()
 	
 	place $STD_PLACES()$
-	initial to INIT do{ $basic_init(id=id)$ printf("deadcode: initial %d,",id);}
+	initial to INIT do{ $basic_init(id=id)$ if(OBS_UNREACHABLE_CODE==1) then printf("deadcode: initial %d,",id); fi}
 	$STD_TRANS( deadcode=1 )$
 	on exit from ALLOW to FIN
 	
@@ -2231,12 +2240,12 @@ THROW(id, faultCode)::=<<
 
 atom type Throw_$id$()
 	
-	$basic_data()$, faultCode
+	$basic_data()$
 	$STD_PORTS()$
 	export port $ebport(intNum=1)$ fault(faultCode)
 	
 	place $STD_PLACES()$
-	initial to INIT do{ faultCode=$faultCode$; $basic_init(id=id)$ printf("deadcode: initial %d,",id);}
+	initial to INIT do{ $basic_init(id=id)$ faultCode=$faultCode$;  if(OBS_UNREACHABLE_CODE==1) then printf("deadcode: initial %d,",id); fi}
 	$STD_TRANS( deadcode=1 )$
 	on fault from ALLOW to END
 	
@@ -2251,7 +2260,7 @@ atom type Rethrow_$id$()
 	$STD_PORTS()$, rethrow()
 	
 	place $STD_PLACES()$
-	initial to INIT do{ $basic_init(id=id)$ printf("deadcode: initial %d,",id);}
+	initial to INIT do{ $basic_init(id=id)$ if(OBS_UNREACHABLE_CODE==1) then printf("deadcode: initial %d,",id); fi}
 	$STD_TRANS( deadcode=1 )$
 	on rethrow from ALLOW to END
 	
@@ -2263,7 +2272,7 @@ COPY(id, varsRPorts, varsWPorts, faults, invalidExpressionValue, subLanguageExec
 
 atom type copy_$id$()
 
-	$basic_data()$, faultCode $rest(varsWPorts):{, $it$_out}$ $rest(varsRPorts):{, $it$_in}$
+	$basic_data()$ $rest(varsWPorts):{, $it$_out}$ $rest(varsRPorts):{, $it$_in}$
 	$if(rest(varsRPorts))$ export port $ebport(intNum=first(varsRPorts))$ read_copy_$id$($rest(varsRPorts):{$it$_in};separator=","$)
 	$else$ port $ebport()$ assign_from_literal()
 	$endif$
@@ -2275,7 +2284,7 @@ atom type copy_$id$()
 	
 	place $STD_PLACES()$,COPY, FAULT
 	initial to INIT do {$basic_init(id=id)$ $rest(varsWPorts):{ $it$_out=1;};separator=" "$
-	printf("deadcode: initial %d,",id);
+	if(OBS_UNREACHABLE_CODE==1) then printf("deadcode: initial %d,",id); fi
 	}
 	
 	$if(rest(varsRPorts))$ on read_copy_$id$ from ALLOW to COPY do{ if($rest(varsRPorts):{$it$_in<1};separator="||"$) then faultCode=$uninitializedVariable()$; fi }
@@ -2354,42 +2363,52 @@ $endif$
 STDSCompSinglePorts( comp, id, noReverse, noTerm, noDisable, noStart, sync_controller)::=<<
 
 $if(sync_controller)$ 
-$if(!noStart)$ connector SingletonD start1($sync_controller$.start)
-			   connector RDV2  start_in($comp$$id$C1.start, $sync_controller$.start_in) $endif$
-$if(!noTerm)$ connector ANYD2  term1($comp$$id$C1.term, $sync_controller$.term) $endif$
-$if(!noDisable)$ connector RDVD2  disable1($comp$$id$C1.disable, $sync_controller$.disable) $endif$
-connector SingletonD  allow1($sync_controller$.allow)
-connector SingletonD  done1($sync_controller$.done)
-connector SingletonD fin1($sync_controller$.fin)
-			   connector RDV2  fin_in($comp$$id$C1.fin, $sync_controller$.fin_in) 
-connector RDVD2  interrupt1($comp$$id$C1.interrupt, $sync_controller$.interrupt)
-
+	$if(!noStart)$ 
+		connector SingletonD start1($sync_controller$.start)
+		connector RDV2  start_in($comp$$id$C1.start, $sync_controller$.start_in) $endif$
+	$if(!noTerm)$ 
+		connector ANYD2  term1($comp$$id$C1.term, $sync_controller$.term) $endif$
+	$if(!noDisable)$ 
+		connector RDVD2  disable1($comp$$id$C1.disable, $sync_controller$.disable) 
+	$endif$
+		connector SingletonD  allow1($sync_controller$.allow)
+		connector SingletonD  done1($sync_controller$.done)
+		connector SingletonD fin1($sync_controller$.fin)
+		connector RDV2  fin_in($comp$$id$C1.fin, $sync_controller$.fin_in) 
+		connector RDVD2  interrupt1($comp$$id$C1.interrupt, $sync_controller$.interrupt)
 $else$
-$if(!noStart)$ connector SingletonD start1($comp$$id$C1.start) $endif$
-$if(!noTerm)$ connector SingletonD  term1($comp$$id$C1.term) $endif$
-$if(!noDisable)$ connector SingletonD  disable1($comp$$id$C1.disable) $endif$
-//connector SingletonD  allow1($comp$$id$C1.allow)
-connector SingletonD  fin1($comp$$id$C1.fin)
-connector SingletonD  interrupt1($comp$$id$C1.interrupt)
-$if(!noReverse)$ connector RDD1  reverse1($comp$$id$C1.reverse)
-connector AASD1 reversed1($comp$$id$C1.reversed) $endif$
- $endif$
+	$if(!noStart)$ 
+		connector SingletonD start1($comp$$id$C1.start) $endif$
+	$if(!noTerm)$ 
+		connector SingletonD  term1($comp$$id$C1.term) $endif$
+	$if(!noDisable)$ 
+		connector SingletonD  disable1($comp$$id$C1.disable) $endif$
+		//connector SingletonD  allow1($comp$$id$C1.allow)
+		connector SingletonD  fin1($comp$$id$C1.fin)
+		connector SingletonD  interrupt1($comp$$id$C1.interrupt)
+	$if(!noReverse)$ 
+		connector RDD1  reverse1($comp$$id$C1.reverse)
+		connector AASD1 reversed1($comp$$id$C1.reversed) $endif$
+	$endif$
 >>
 
 STDSCompMultiPortsExp( comp, id, childComp, noTerm, sync_controller)::=<<
-export port start1.xpr as start
-$if(!noTerm)$ export port term1.xpr as term $endif$
-export port interrupt1.xpr as interrupt 
-export port fin1.xpr as fin 
-export port disable1.xpr as disable 
-$if(sync_controller)$
-export port done1.xpr as done 
-export port allow1.xpr as allow 
-$else$
-$if(childComp)$ export port $childComp:{$comp$$id$C$i$.allow};separator=","$ as allow
-export port $childComp:{$comp$$id$C$i$.done};separator=","$ as done
-$endif$
-$endif$
+	export port start1.xpr as start
+	$if(!noTerm)$ 
+		export port term1.xpr as term 
+	$endif$
+		export port interrupt1.xpr as interrupt 
+		export port fin1.xpr as fin 
+		export port disable1.xpr as disable 
+	$if(sync_controller)$
+		export port done1.xpr as done 
+		export port allow1.xpr as allow 
+	$else$
+		$if(childComp)$ 
+			export port $childComp:{$comp$$id$C$i$.allow};separator=","$ as allow
+			export port $childComp:{$comp$$id$C$i$.done};separator=","$ as done
+		$endif$
+	$endif$
 
 >>
 
@@ -2415,7 +2434,9 @@ compound type assign_$id$()
 	$childComp:{component $it$ CP$id$C$i$()};separator="\n"$
 	component empty_assign CNTRL($id$)
 	
-	$if(count)$ $ParallelPorts(comp="CP", id=id, count=count, childComp=childComp, sync_controller="CNTRL")$ $else$ $STDSCompSinglePorts(comp="CP", id=id, noReverse=1, sync_controller="CNTRL")$ $endif$
+	$if(count)$ 	$ParallelPorts(comp="CP", id=id, count=count, childComp=childComp, sync_controller="CNTRL")$ 
+	$else$ 			$STDSCompSinglePorts(comp="CP", id=id, noReverse=1, sync_controller="CNTRL")$ 
+	$endif$
 
 	$MSGACT(comp="CP",id=id, ports=ports)$
 	connector AASD$expWPorts:{$first(rest(rest(it)))$};separator="o"$ write_assign_$id$_in($childComp:{CP$id$C$i$.write_$it$};separator=","$)

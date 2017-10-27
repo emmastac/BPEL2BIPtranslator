@@ -10,6 +10,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -22,11 +25,13 @@ import java.util.List;
 
 import javax.xml.namespace.QName;
 
+import main.Preferences;
 import observers.BIPPropertyObserver;
 import observers.DeadlockObserver;
 import observers.MessageObserverIn;
 import observers.MessageObserverOut;
 
+import org.apache.commons.io.FileUtils;
 import org.w3c.dom.Attr;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -37,6 +42,7 @@ import stUtils.MapUtils;
 import bpelUtils.BPELFile;
 import bpelUtils.NodeName;
 import bpelUtils.WSDLFile;
+import static java.nio.file.StandardCopyOption.*;
 
 public class BPELCompiler {
 
@@ -45,9 +51,8 @@ public class BPELCompiler {
 	private static final String BPELNamespaceURI_2_0 = "http://docs.oasis-open.org/wsbpel/2.0/process/executable/";
 	private static final String BPELNamespaceURI_1_0 = "http://schemas.xmlsoap.org/ws/2003/03/business-process/";
 
-	
-	private static String buildFile = "/resources/build.sh";
-	private static String [ ] extSourceFiles = { "/resources/Standard.cpp" , "/resources/Standard.hpp" };
+	private static String buildFile = "/src/resources/build.sh";
+	private static String [ ] extSourceFiles = { "/src/resources/Standard.cpp" , "/src/resources/Standard.hpp" };
 
 	private static String BPEL_version = BPELNamespaceURI_2_0;
 	private static final String [ ] dependencyExtensions = new String [ ] { "wsdl" };
@@ -66,30 +71,36 @@ public class BPELCompiler {
 	private boolean withOutput;
 
 
-	public static BufferedReader resourceReader(String path){
-		return new BufferedReader(new InputStreamReader( BPELCompiler.class.getResourceAsStream( path ) ));
-		
+	public static BufferedReader resourceReader( String path ) {
+
+		return new BufferedReader( new InputStreamReader( BPELCompiler.class.getResourceAsStream( path ) ) );
+
 	}
-	
-	private void copyFiles( String from , String to ) {
 
-		BufferedReader in = resourceReader(from);
-		BufferedWriter out;
-		try {
-			out = new BufferedWriter( new FileWriter( to ) );
 
-			String line = null;
-			while ( ( line = in.readLine( ) ) != null ) {
-				out.write( line );
-			}
+	private void copyFiles( String from , String to ) throws IOException , URISyntaxException {
 
-			out.close( );
-			in.close( );
+		// BufferedReader in = resourceReader(from);
+		// BufferedWriter out;
+		// try {
+		// out = new BufferedWriter( new FileWriter( to ) );
+		//
+		// String line = null;
+		// while ( ( line = in.readLine( ) ) != null ) {
+		// out.write( line );
+		// }
+		//
+		// out.close( );
+		// in.close( );
+		//
+		// } catch ( IOException e ) {
+		// // TODO Auto-generated catch block
+		// e.printStackTrace( );
+		// }
+		Path source = Paths.get( System.getProperty( "user.dir" ) + from );
+		Path target = FileSystems.getDefault( ).getPath( to );
 
-		} catch ( IOException e ) {
-			// TODO Auto-generated catch block
-			e.printStackTrace( );
-		}
+		Files.copy( source , target );
 
 	}
 
@@ -174,11 +185,11 @@ public class BPELCompiler {
 				cppw = new BufferedWriter( new FileWriter( BIPprojectName + "/src-ext/Check.cpp" ) );
 
 				if ( ! ( Paths.get( BIPprojectName ).resolve( buildFile ) ).toFile( ).exists( ) ) {
-					String buildFileOut = Paths.get( buildFile ).getParent().relativize( Paths.get( buildFile ) ).toString( );
-					copyFiles( buildFile, Paths.get( BIPprojectName ).toString( )+"/"+buildFileOut );
+					String buildFileOut = Paths.get( buildFile ).getParent( ).relativize( Paths.get( buildFile ) ).toString( );
+					copyFiles( buildFile , Paths.get( BIPprojectName ).toString( ) + "/" + buildFileOut );
 				}
 				for ( int i = 0 ; i < extSourceFiles.length ; i++ ) {
-					Path filename = Paths.get( extSourceFiles[ i ] ).getParent().relativize( Paths.get( extSourceFiles[ i ] ) );
+					Path filename = Paths.get( extSourceFiles[ i ] ).getParent( ).relativize( Paths.get( extSourceFiles[ i ] ) );
 					Path destFile = Paths.get( BIPprojectName + "/src-ext" , filename.toString( ) );
 					if ( !destFile.toFile( ).exists( ) ) {
 
@@ -190,7 +201,9 @@ public class BPELCompiler {
 				source.setExecutable( true );
 				source.setWritable( true );
 			}
+
 			tm = new TemplateMaker( new File( bpelFileName ) , this );
+			
 
 			// translation options, hardcoded for now
 			if ( withOutput ) {
