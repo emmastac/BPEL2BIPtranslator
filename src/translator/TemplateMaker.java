@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -33,7 +34,13 @@ import bipUtils.IOMsgPort;
 import bipUtils.Port;
 import bipUtils.RvrsPort;
 import bipUtils.RwPort;
+import bipmodel.Assign;
+import bipmodel.BIPHeader;
+import bipmodel.Listen;
+import bipmodel.PortTypeDeclaration;
+import bipmodel.Receive;
 import bpelUtils.BPELFile;
+import bpelUtils.Faults;
 import bpelUtils.NodeName;
 import bpelUtils.WSDLFile;
 import bpelUtils.XMLFile;
@@ -41,62 +48,32 @@ import bpelUtils.XMLFile;
 import com.sun.org.apache.xerces.internal.dom.DocumentImpl;
 
 public class TemplateMaker {
-	
+
 	public static final String bip4VerifTemplate = "/resources/bip.stg";
 	public static final String bip4ExecTemplate = "/resources/bip4Exec.stg";
 
-	TemplateList tmplInst;
-	private AttrFiller filler;
-	private BPELCompiler bcompiler;
-	private String templateFile = null;
-	private HashMap < String , Integer > faults2codes = new HashMap < String , Integer >( );
-	private String [ ] standardFaults = new String [ ] { "ambiguousReceive" , "completionConditionFailure" , "conflictingReceive" ,
-			"conflictingRequest" , "correlationViolation" , "invalidBranchCondition" , "joinFailure" , "missingReply" , "missingRequest" ,
-			"uninitializedPartnerRole" , "uninitializedVariable" , "subLanguageExecutionFault" , "invalidExpressionValue" , "invalidVariables" ,
-			"mismatchedAssignmentFailure" , "selectionFailure" };
+	private static Faults faults;
 
-	
+	public static TemplateList templateList;
+	private static AttrFiller filler;
+	private static BPELCompiler bcompiler;
+	private static String templateFile = null;
 
 
 	public TemplateMaker( File bpelFile , BPELCompiler bcompiler ) {
 
-		for ( int i = 0 ; i < standardFaults.length ; i++ ) {
-			this.faults2codes.put( standardFaults[ i ] , i + 1 );
-		}
 		this.filler = new AttrFiller( );
 		this.bcompiler = bcompiler;
-		tmplInst = new TemplateList( );
-		
+		templateList = new TemplateList( );
+
 		if ( Preferences.isForExecution( ) ) {
 			templateFile = bip4ExecTemplate;
-		}else{
+		} else {
 			templateFile = bip4VerifTemplate;
 		}
 
-	}
+		this.faults = new Faults( );
 
-
-	private int getFaultName( String faultName ) {
-
-		String matchedFaultName = "";
-		if ( this.faults2codes.containsKey( faultName ) ) {
-			matchedFaultName = faultName;
-		} else {
-			for ( String s : this.faults2codes.keySet( ) ) {
-				// match with the biggest completeFaultName found in queried
-				// faultName
-				if ( matchedFaultName.length( ) < s.length( ) && faultName.contains( s ) ) {
-					matchedFaultName = s;
-				}
-			}
-		}
-
-		Integer faultCode = this.faults2codes.get( matchedFaultName );
-		if ( faultCode == null ) {
-			faultCode = this.faults2codes.size( ) + 1;
-			this.faults2codes.put( faultName , faultCode );
-		}
-		return faultCode;
 	}
 
 
@@ -129,15 +106,70 @@ public class TemplateMaker {
 	 * @throws FileNotFoundException
 	 */
 
-	public String applyHeaderBIP( String packageName , int debug ) throws Exception {
+	// public <T extends BIPtemplate> void applyTemplate(T aTemp, Class<T>
+	// clazz){
+	// try {
+	// T t = clazz.newInstance();
+	// StringTemplate template = AttrFiller.getTemplate( templateFile ,
+	// t.getTemplateName( ) );
+	//
+	// } catch ( Exception e ) {
+	// // TODO Auto-generated catch block
+	// e.printStackTrace();
+	// }
+	// }
 
-		StringTemplate template = AttrFiller.getTemplate( templateFile , "header_BIP" );
-		template.setAttribute( "name" , packageName );
-		template.setAttribute( "debug" , debug );
-		tmplInst.addInstances( Arrays.asList( new String [ ] { "e0b0port" , "e1b0port" , "e2b0port" , "fh_ctrl" , "scope_cntr" , "BRDCAST2" , "BRDCASTD2" ,
-				"SingletonD" } ) );
+	public String applyHeaderBIP( String packageName ) throws Exception {
 
-		return template.toString( );
+		BIPHeader bipTemplate = new BIPHeader( );
+		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
+		bipTemplate.toTemplate( null , ret , null , templateFile , templateList );
+		return ( String ) MapUtils.getSingleEntry( ret , MapKeys.BIP_CODE );
+	}
+
+
+	public static String applyPortTypeDecl( int N , int B ) {
+
+		PortTypeDeclaration bipTemplate = new PortTypeDeclaration( );
+		bipTemplate.boolVar = B;
+		bipTemplate.intVar = N;
+		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
+		bipTemplate.toTemplate( null , ret , null , templateFile , templateList );
+		String code = ( String ) MapUtils.getSingleEntry( ret , MapKeys.BIP_CODE );
+		if ( code == null ) {
+			code = "";
+		}
+		return code;
+	}
+
+
+	/* String[] intLists, String fault */
+	public HashMap < String , ArrayList > applyRECEIVE( Element element , ArrayDeque < HashMap < String , ArrayList >> stack ) throws Exception {
+
+		Receive bipTemplate;
+		if ( NodeName.getNodeName( element.getTagName( ) ).equals( NodeName.RECEIVE ) ) {
+			bipTemplate = new Receive( );
+		} else {
+			bipTemplate = new Listen( );
+		}
+
+		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
+		bipTemplate.toTemplate( stack , ret , element , templateFile , templateList );
+
+		return ret;
+
+	}
+
+
+	public HashMap < String , ArrayList > applyASSIGN( Element element , ArrayDeque < HashMap < String , ArrayList >> stack ) throws Exception {
+
+		Assign bipTemplate = new Assign( );
+
+		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
+		bipTemplate.toTemplate( stack , ret , element , templateFile , templateList );
+
+		return ret;
+
 	}
 
 
@@ -157,13 +189,13 @@ public class TemplateMaker {
 
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "footer" );
 
-		template.setAttribute( "compName" , MapUtils.getMapSingleEntry( ret , MapKeys.CHILD_COMP ) );
+		template.setAttribute( "compName" , MapUtils.getSingleEntry( ret , MapKeys.CHILD_COMP ) );
 
 		HashMap < String , ArrayList > vars = new HashMap < String , ArrayList >( );
 		addAsChild( vars , ret );
 		HashMap templatePortsMap = new HashMap < String , ArrayList < Object >>( );
 		ret = new HashMap < String , ArrayList >( );
-		ret = exportPorts( vars , templatePortsMap , template , ret , true );
+		exportPorts( vars , templatePortsMap , template , ret , true );
 
 		return template.toString( );
 	}
@@ -176,14 +208,14 @@ public class TemplateMaker {
 	 * @param nspaceL
 	 * @return
 	 */
-	private ArrayList < WSDLFile > getWSDLs_in_nspaceL( ArrayDeque < HashMap < String , ArrayList >> stack , String nspaceL ,
+	public static ArrayList < WSDLFile > getWSDLs_in_nspaceL( ArrayDeque < HashMap < String , ArrayList >> stack , String nspaceL ,
 			HashMap < String , ArrayList < String > > nspaceL_to_paths ) {
 
 		if ( nspaceL_to_paths == null ) {
 			Iterator it = stack.iterator( );
 			while ( it.hasNext( ) ) {
 				HashMap < String , ArrayList > vars = ( HashMap < String , ArrayList > ) it.next( );
-				nspaceL_to_paths = ( HashMap < String , ArrayList < String > > ) MapUtils.getMapSingleEntry( vars , MapKeys.NSPACEL_TO_PATHS );
+				nspaceL_to_paths = ( HashMap < String , ArrayList < String > > ) MapUtils.getSingleEntry( vars , MapKeys.NSPACEL_TO_PATHS );
 				if ( nspaceL_to_paths != null && nspaceL_to_paths.containsKey( nspaceL ) ) {
 					break;
 				}
@@ -197,7 +229,7 @@ public class TemplateMaker {
 		}
 		ArrayList < WSDLFile > files = new ArrayList < WSDLFile >( );
 		for ( String location : locations ) {
-			files.add( this.bcompiler.locsToParsedFile.get( location ) );
+			files.add( bcompiler.locsToParsedFile.get( location ) );
 		}
 
 		return files;
@@ -266,7 +298,7 @@ public class TemplateMaker {
 			parts.addAll( MapUtils.getVariableParts( stack , elem.getAttribute( "inputVariable" ) ) );
 
 		} else if ( elem.hasAttribute( "partnerLink" ) ) { // in 'copy'
-			String partnerLink = partnerLinkToBIP( elem.getAttribute( "partnerLink" ) );// TODO
+			String partnerLink = TemplateMaker.partnerLinkToBIP( elem.getAttribute( "partnerLink" ) );// TODO
 
 			ArrayList < String > partnerLinkList = ( ArrayList < String > ) findInMapOfEnclosingScopes( stack , partnerLink , MapKeys.PARTNER_LINKS );
 
@@ -289,8 +321,7 @@ public class TemplateMaker {
 			if ( varParts.size( ) > 0 ) {
 				template.setAttribute( "invalidExpressionValue" , 1 );
 				template.setAttribute( "subLanguageExecutionFault" , 1 );
-				MapUtils.addToMapEntry( ret , MapKeys.FAULTS_LIST , "invalidExpressionValue" );
-				MapUtils.addToMapEntry( ret , MapKeys.FAULTS_LIST , "subLanguageExecutionFault" );
+				MapUtils.addToMapEntry( ret , MapKeys.FAULTS_LIST , "invalidExpressionValue" , "subLanguageExecutionFault" );
 			}
 
 			variablesNeedSorting = true;
@@ -354,40 +385,40 @@ public class TemplateMaker {
 			while ( it.hasNext( ) ) {
 				hereNums = 0;
 				HashMap < String , ArrayList > vars = ( HashMap < String , ArrayList > ) it.next( );
-				HashMap < String , ArrayList < String >> variables = ( HashMap < String , ArrayList < String >> ) MapUtils.getMapSingleEntry( vars ,
+				HashMap < String , ArrayList < String >> variables = ( HashMap < String , ArrayList < String >> ) MapUtils.getSingleEntry( vars ,
 						MapKeys.VARIABLES );
-				HashMap < String , Object > partnerLinks = ( HashMap < String , Object > ) MapUtils.getMapSingleEntry( vars , MapKeys.PARTNER_LINKS );
+				HashMap < String , Object > partnerLinks = ( HashMap < String , Object > ) MapUtils.getSingleEntry( vars , MapKeys.PARTNER_LINKS );
 
 				for ( String part : parts ) {
-					if ( readPort.getVarParts( ).contains( part ) ) {
+					if ( readPort.parts( ).contains( part ) ) {
 						continue;
 					}
 
 					String varName = part.split( "_" )[ 0 ];
 
 					if ( ( variables != null && variables.containsKey( varName ) ) || ( partnerLinks != null && partnerLinks.containsKey( varName ) ) ) {
-						readPort.getVarParts( ).add( 0 , part );
+						readPort.parts( ).add( 0 , part );
 						hereNums++;
 					}
 				}
-				if ( readPort.getVarParts( ).size( ) == parts.size( ) ) {
+				if ( readPort.parts( ).size( ) == parts.size( ) ) {
 					break;
 				}
 
 			}
 
 		} else {
-			readPort.getVarParts( ).addAll( parts );
+			readPort.parts( ).addAll( parts );
 		}
 
-		parts = readPort.getVarParts( );
+		parts = readPort.parts( );
 		// assign the sorted partList to parts
 		template.setAttribute( "varsRPorts" , parts.size( ) ); /* partNames */
 		for ( String part : parts ) {
 			template.setAttribute( "varsRPorts" , part ); /* partNames */
 		}
-		// ret = MapUtils.addToBIPCode(applyPortTypeDecl(var_parts, 1), ret);
-		ret = MapUtils.addToBIPCode( applyPortTypeDecl( parts.size( ) , 0 ) , ret );
+		// MapUtils.addToBIPCode(applyPortTypeDecl(var_parts, 1), ret);
+		MapUtils.addToBIPCode( ret , applyPortTypeDecl( parts.size( ) , 0 ) );
 		// add to ret only if there are variables to read
 		MapUtils.addToMapEntry( ret , MapKeys.READ_PORTS , readPort );
 
@@ -395,209 +426,14 @@ public class TemplateMaker {
 	}
 
 
-	private String partnerLinkToBIP( String partnerLink ) {
+	public static String partnerLinkToBIP( String partnerLink ) {
 
 		return partnerLink; // ideally add a suffix to avoid duplicate BIP
 							// variables
 	}
 
 
-	private RwPort createWritePort( String compName , Element elem , StringTemplate template , ArrayDeque < HashMap < String , ArrayList >> stack ,
-			HashMap < String , ArrayList > ret ) throws Exception {
-
-		RwPort writePort = new RwPort( compName , "" );
-		( ( ArrayList < Object > ) ret.get( MapKeys.WRITE_PORTS ) ).add( writePort );
-		ArrayList < String > parts = writePort.getVarParts( );
-		// if the openIMAScope is declared, then this is a port for writing a
-		// message
-
-		/* receive will either have a variable attribute or a fromParts element */
-		if ( elem.hasAttribute( "variable" ) ) { // in 'receive', 'reply' or
-													// 'copy'
-			if ( elem.hasAttribute( "part" ) ) { // in'copy'
-				parts.add( elem.getAttribute( "variable" ) + "_" + elem.getAttribute( "part" ) );
-			} else if ( elem.hasAttribute( "property" ) ) { // in'copy'
-				parts.add( elem.getAttribute( "variable" ) + "_" + elem.getAttribute( "property" ) );
-			} else { // in all
-				parts.addAll( MapUtils.getVariableParts( stack , elem.getAttribute( "variable" ) ) );
-			}
-		} else if ( elem.hasAttribute( "outputVariable" ) ) { // in 'invoke'
-			parts.addAll( MapUtils.getVariableParts( stack , elem.getAttribute( "outputVariable" ) ) );
-		} else if ( elem.hasAttribute( "partnerLink" ) ) { // in 'copy'
-			String partnerLink = partnerLinkToBIP( elem.getAttribute( "partnerLink" ) );// TODO
-
-			ArrayList < String > partnerLinkList = ( ArrayList < String > ) findInMapOfEnclosingScopes( stack , partnerLink , MapKeys.PARTNER_LINKS );
-
-			if ( partnerLinkList == null ) {
-				throw new Exception( "partner link not found" );
-			}
-			// String partnerRole = ( String ) partnerLinkList.get( 1 );
-			parts.add( partnerLink + "_pRole" );
-
-		} else {
-			ArrayList < Element > toPartElems = bcompiler.bpelFile.getChildrenInWrapper( elem , "fromParts" , "fromPart" );
-
-			// bcompiler.bpelFile.getChildrenInWrapper( elem , "fromParts" ,
-			// "fromPart" );
-			// ArrayList < Element > toPartsElems =
-			// XMLFile.getChildrenByTagLocalName( elem , "fromParts" );
-			if ( toPartElems.size( ) > 0 ) {
-				for ( Element toPart : toPartElems ) {
-					String part = toPart.getAttribute( "toVariable" ) + "_" + toPart.getAttribute( "part" );
-					parts.add( part );
-				}
-
-			} else { // in 'copy'
-				String variableString = elem.getTextContent( );
-				if ( variableString != null ) { // only in
-					int ind = variableString.indexOf( "." );
-					if ( ind > 0 ) {
-						String variable = variableString.replace( "$" , "" );
-						String part = variable.replace( '.' , '_' );
-						parts.add( part );
-					} else {
-						String variable = variableString.replace( "$" , "" );
-						parts.addAll( MapUtils.getVariableParts( stack , variable ) );
-					}
-				}
-			}
-		}
-		template.setAttribute( "varsWPorts" , parts.size( ) ); /* partNames */
-		ret = MapUtils.addToBIPCode( applyPortTypeDecl( parts.size( ) , 0 ) , ret ); // not
-		// in
-		// 'invoke'
-		for ( String part : parts ) {
-			template.setAttribute( "varsWPorts" , part );
-		}
-
-		return writePort;
-	}
-
-
-	/**
-	 * Add the parts of a referenced variable found in invoke, receive and reply
-	 * activities into the writePort.
-	 * 
-	 * @param stack
-	 * @param elem
-	 * @param writePort
-	 * @throws Exception
-	 */
-	private void addVarParts( ArrayDeque < HashMap < String , ArrayList >> stack , Element elem , IOMsgPort writePort ) throws Exception {
-
-		ArrayList < String > parts = writePort.getVarParts( );
-		// if the openIMAScope is declared, then this is a port for writing a
-		// message
-
-		/* receive will either have a variable attribute or a fromParts element */
-		if ( elem.hasAttribute( "variable" ) ) { // in 'receive', 'reply' or
-													// 'copy'
-			if ( elem.hasAttribute( "part" ) ) { // in'copy'
-				parts.add( elem.hasAttribute( "variable" ) + "_" + elem.getAttribute( "part" ) );
-			} else if ( elem.hasAttribute( "property" ) ) { // in'copy'
-				parts.add( elem.hasAttribute( "variable" ) + "_" + elem.getAttribute( "property" ) );
-			} else { // in all
-				parts.addAll( MapUtils.getVariableParts( stack , elem.getAttribute( "variable" ) ) );
-			}
-		} else if ( elem.hasAttribute( "outputVariable" ) ) { // in 'invoke'
-			parts.addAll( MapUtils.getVariableParts( stack , elem.getAttribute( "outputVariable" ) ) );
-		} else {
-			ArrayList < Element > toPartElems = bcompiler.bpelFile.getChildrenInWrapper( elem , "fromParts" , "fromPart" );
-			if ( toPartElems.size( ) > 0 ) {
-				for ( Element toPart : toPartElems ) {
-					String part = toPart.getAttribute( "toVariable" ) + "_" + toPart.getAttribute( "part" );
-					parts.add( part );
-				}
-			} else { // in 'copy'
-				String variableString = elem.getTextContent( );
-				if ( variableString != null ) { // only in
-					int ind = variableString.indexOf( "." );
-					if ( ind > 0 ) {
-						String variable = variableString.replace( "$" , "" );
-						String part = variable.replace( '.' , '_' );
-						parts.add( part );
-					} else {
-						String variable = variableString.replace( "$" , "" );
-						parts.addAll( MapUtils.getVariableParts( stack , variable ) );
-					}
-				}
-			}
-		}
-
-		// if there are variable parts to read, find in stack the index of the
-		// scope where variable is declared
-		if ( parts.size( ) > 0 ) {
-			String variable = parts.get( 0 ).split( "_" )[ 0 ];
-			Iterator it = stack.iterator( );
-			while ( it.hasNext( ) ) {
-				HashMap < String , ArrayList > vars = ( HashMap < String , ArrayList > ) it.next( );
-				HashMap < String , ArrayList < String >> variables = ( HashMap < String , ArrayList < String >> ) MapUtils.getMapSingleEntry( vars ,
-						MapKeys.VARIABLES );
-				if ( variables != null && variables.size( ) > 0 && ( parts = variables.get( variable ) ) != null && parts.size( ) > 0 ) {
-					writePort.setVarPartsScope( ( String ) MapUtils.getMapSingleEntry( vars , MapKeys.ID ) );
-					break;
-				}
-				variables = ( HashMap < String , ArrayList < String >> ) MapUtils.getMapSingleEntry( vars , MapKeys.PARTNER_LINKS );
-				if ( variables != null && variables.size( ) > 0 && ( parts = variables.get( variable ) ) != null && parts.size( ) > 0 ) {
-					writePort.setVarPartsScope( ( String ) MapUtils.getMapSingleEntry( vars , MapKeys.ID ) );
-					break;
-				}
-			}
-
-		}
-	}
-
-
-	private void setScopeOpenIMA( IOMsgPort port , ArrayDeque < HashMap < String , ArrayList >> stack , String partnerLink , String messageExchange ) {
-
-		// search the name of the scope where the openIMA is checked
-		Iterator it = stack.iterator( );
-		while ( it.hasNext( ) ) {
-			HashMap < String , ArrayList > vars = ( HashMap < String , ArrayList > ) it.next( );
-			if ( vars.containsKey( MapKeys.PARTNER_LINKS ) ) {
-				Set < String > scopePartnerLinks = ( ( HashMap < String , ArrayList < String >> ) MapUtils.getMapSingleEntry( vars ,
-						MapKeys.PARTNER_LINKS ) ).keySet( );
-				if ( scopePartnerLinks.contains( partnerLink ) ) {
-					String scopeID = ( String ) MapUtils.getMapSingleEntry( vars , MapKeys.ID );
-					port.setOpenIMAScope( scopeID );
-					break;
-				}
-			}
-			if ( vars.containsKey( MapKeys.MESSAGE_EXCHANGES ) ) {
-				Set < String > scopeMessageExchanges = ( ( HashMap < String , ArrayList < String >> ) MapUtils.getMapSingleEntry( vars ,
-						MapKeys.MESSAGE_EXCHANGES ) ).keySet( );
-				if ( scopeMessageExchanges.contains( messageExchange ) ) {
-					String scopeID = ( String ) MapUtils.getMapSingleEntry( vars , MapKeys.ID );
-					port.setOpenIMAScope( scopeID );
-					break;
-				}
-			}
-		}
-	}
-
-
-	private void setScopePartnerLink( IOMsgPort port , ArrayDeque < HashMap < String , ArrayList >> stack , String partnerLink ) {
-
-		// search the name of the scope where the openIMA is checked
-		Iterator it = stack.iterator( );
-		while ( it.hasNext( ) ) {
-			HashMap < String , ArrayList > vars = ( HashMap < String , ArrayList > ) it.next( );
-
-			if ( vars.containsKey( MapKeys.PARTNER_LINKS ) ) {
-				Set < String > scopePartnerLinks = ( ( HashMap < String , ArrayList < String >> ) MapUtils.getMapSingleEntry( vars ,
-						MapKeys.PARTNER_LINKS ) ).keySet( );
-				if ( scopePartnerLinks.contains( partnerLink ) ) {
-					String scopeID = ( String ) MapUtils.getMapSingleEntry( vars , MapKeys.ID );
-					port.setPartnerLinkScope( scopeID );
-					break;
-				}
-			}
-
-		}
-	}
-
-
-	private TreeMap < String , String > extractCorrSets( Element elem ) throws XPathExpressionException {
+	public static TreeMap < String , String > extractCorrSets( Element elem ) throws XPathExpressionException {
 
 		TreeMap < String , String > extractedCSs = new TreeMap < String , String >( );
 		// read the correlationSet elements
@@ -612,150 +448,15 @@ public class TemplateMaker {
 	}
 
 
-	/**
-	 * Called when a new IO port is created.
-	 * 
-	 * @param extractedCSs
-	 * @param ioPort
-	 * @param attributeName
-	 */
-	private void addIMAInfo( Element elem , Map < String , String > extractedCSs , StringTemplate template , IOMsgPort ioPort ,
-			ArrayDeque < HashMap < String , ArrayList >> stack , String attributeName ) {
-
-		ArrayList < String [ ] > orderedCSs = ioPort.getOrderedCSs( );
-		ArrayList < String > orderedCSetLabels = ioPort.getOrderedCSLabels( );
-		HashMap < String , Integer > CSsNumPerScope = ioPort.getCSsNumPerScopeID( );
-		HashMap < String , Integer > CSLabelsNumPerScope = ioPort.getCSLabelsNumPerScopeID( );
-
-		String partnerLink = elem.getAttribute( "partnerLink" );
-
-		// create a temporary set, that initially has all unorderd CSs
-		Set < String > unorderedCSs = new HashSet < String >( extractedCSs.keySet( ) );
-
-		if ( unorderedCSs.size( ) > 0 ) {
-			ioPort.setWithCS( true );
-		}
-
-		Iterator it = stack.iterator( );
-		while ( it.hasNext( ) ) {
-			HashMap < String , ArrayList > vars = ( HashMap < String , ArrayList > ) it.next( );
-			// check the correlations sets in the current node's HashMap
-
-			if ( vars.containsKey( MapKeys.PARTNER_LINKS ) ) {
-				Set < String > scopePartnerLinks = ( ( HashMap < String , ArrayList < String >> ) MapUtils.getMapSingleEntry( vars ,
-						MapKeys.PARTNER_LINKS ) ).keySet( );
-				if ( scopePartnerLinks.contains( partnerLink ) ) {
-					// if partnerLink is found, add all CSs to this scope
-					for ( String CSname : unorderedCSs ) {
-						// add each CS to the rightmost (end) of the list
-						orderedCSetLabels.add( CSname );
-					}
-					// add the scopeID and their number in the
-					String scopeID = ( String ) MapUtils.getMapSingleEntry( vars , MapKeys.ID );
-					int scopeCSLabelsAdded = unorderedCSs.size( );
-					CSLabelsNumPerScope.put( scopeID , scopeCSLabelsAdded );
-					unorderedCSs.clear( );
-
-					ioPort.setPartnerLinkScope( scopeID );
-				}
-			} else {
-				// if parterLink is not found, search for CSs in scope
-				HashMap < String , ArrayList < String >> CSs = ( HashMap < String , ArrayList < String >> ) MapUtils.getMapSingleEntry( vars ,
-						MapKeys.CORRELATION_SETS );
-				ArrayList < String > csEntry = null;
-				if ( CSs != null && CSs.size( ) > 0 ) {
-					// add the CSs that we still search
-					Set < String > CSNeededAndInScope = new HashSet < String >( unorderedCSs );
-					// interesect with CSs in scope
-					CSNeededAndInScope.retainAll( CSs.keySet( ) );
-					// remove the CSs found in scope
-					unorderedCSs.removeAll( CSNeededAndInScope );
-					for ( String CSname : CSNeededAndInScope ) {
-						// add each CS to the rightmost (end) of the list
-						orderedCSetLabels.add( CSname ); // exported come after
-					}
-					int scopeCSLabelsAdded = CSNeededAndInScope.size( );
-					if ( scopeCSLabelsAdded > 0 ) {
-						// add the scopeID and their number in the
-						String scopeID = ( String ) MapUtils.getMapSingleEntry( vars , MapKeys.ID );
-						CSLabelsNumPerScope.put( scopeID , scopeCSLabelsAdded );
-					}
-
-				}
-			}
-			if ( unorderedCSs.size( ) == 0 && !ioPort.getPartnerLinkScope( ).equals( "" ) ) {
-				break;// all the CSLabels are ordered
-			}
-
-		}
-		// sort the CSLabels : END
-
-		// sort the CSs : StringTemplateART
-		unorderedCSs = new HashSet < String >( extractedCSs.keySet( ) );
-		// iterate the HashMaps of nodes looking for corrSetLabels
-
-		it = stack.iterator( );
-		while ( it.hasNext( ) ) {
-			HashMap < String , ArrayList > vars = ( HashMap < String , ArrayList > ) it.next( );
-			// check the correlations sets in the current node's HashMap
-			HashMap < String , ArrayList < String >> CSs = ( HashMap < String , ArrayList < String >> ) MapUtils.getMapSingleEntry( vars ,
-					MapKeys.CORRELATION_SETS );
-			ArrayList < String > csEntry = null;
-			if ( CSs != null && CSs.size( ) > 0 ) {
-				// interesect with CSs in scope
-				Set < String > CSNeededAndInScope;
-				( CSNeededAndInScope = new HashSet < String >( unorderedCSs ) ).retainAll( CSs.keySet( ) );
-				// remove the CSs found in scope
-				unorderedCSs.removeAll( CSNeededAndInScope );
-				for ( String CSname : CSNeededAndInScope ) {
-					String initiateValue = extractedCSs.get( CSname );
-
-					int initiateDiscr = 0; // 0 for no
-					if ( initiateValue.equals( "yes" ) )
-						initiateDiscr = 1;
-					else if ( initiateValue.equals( "join" ) )
-						initiateDiscr = 2;
-
-					// add each CS to the rightmost (end) of the list
-					orderedCSs.add( new String [ ] { CSname , String.valueOf( initiateDiscr ) } );
-				}
-
-				int scopeCSsAdded = CSNeededAndInScope.size( );
-				if ( scopeCSsAdded > 0 ) {
-					// add the scopeID and their number in the
-					String scopeID = ( String ) MapUtils.getMapSingleEntry( vars , MapKeys.ID );
-					CSsNumPerScope.put( scopeID , scopeCSsAdded );
-				}
-
-				if ( unorderedCSs.size( ) == 0 ) {
-					// all the corrSets are ordered
-					break;
-				}
-			}
-		}
-		// sort the CSs : END
-
-		if ( ioPort.getOrderedCSs( ).size( ) > 0 ) {
-			// add initiate values to template attribute initiateList
-			for ( String [ ] cs : ioPort.getOrderedCSs( ) ) {
-				template.setAttribute( attributeName , cs[ 1 ] );
-			}
-			// add the number of initiate values at the end of the initiateList
-			template.setAttribute( attributeName , ioPort.getOrderedCSs( ).size( ) );
-		}
-
-	}
-
-
 	public HashMap < String , ArrayList > applyEH( Element elem , ArrayDeque < HashMap < String , ArrayList >> stack ) throws Exception {
 
 		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
 		HashMap < String , ArrayList > vars = stack.peek( );
 
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "EH" );
-		template.setAttribute( "id" , tmplInst.getSize( ) + 1 );
-		String compName = "eh_" + ( tmplInst.getSize( ) + 1 );
-		tmplInst.addInstance( compName );
+		template.setAttribute( "id" , templateList.getSize( ) + 1 );
+		String compName = "eh_" + ( templateList.getSize( ) + 1 );
+		templateList.addInstance( compName );
 		MapUtils.addToMap( ret , MapKeys.CHILD_COMP , compName , -1 );
 		MapUtils.addToMap( ret , MapKeys.SCOPE_ROLES , "EH" , -1 );
 
@@ -768,12 +469,12 @@ public class TemplateMaker {
 		template.setAttribute( "count" , count );
 
 		HashMap templatePortsMap = new HashMap( );
-		ret = exportPorts( vars , templatePortsMap , template , ret , false );
+		exportPorts( vars , templatePortsMap , template , ret , false );
 
-		ret = MapUtils.addToBIPCode( applyRDV( 2 , false ) , ret );
-		ret = MapUtils.addToBIPCode( applyRDV( count , true ) , ret );
-		ret = MapUtils.addToBIPCode( applyANY( count , true ) , ret );
-		ret = MapUtils.addToBIPCode( template.toString( ) , ret );
+		MapUtils.addToBIPCode( ret , applyRDV( 2 , false ) );
+		MapUtils.addToBIPCode( ret , applyRDV( count , true ) );
+		MapUtils.addToBIPCode( ret , applyANY( count , true ) );
+		MapUtils.addToBIPCode( ret , template.toString( ) );
 		return ret;
 
 	}
@@ -817,20 +518,17 @@ public class TemplateMaker {
 
 		// create a conditional controller component
 		HashMap < String , ArrayList > retLoopCtrl = new HashMap < String , ArrayList >( );
-		String compName = "if_" + ( tmplInst.getSize( ) + 1 ); // e.g. "while_"
+		String compName = "if_" + ( templateList.getSize( ) + 1 ); // e.g.
+																	// "while_"
 		StringTemplate template = prepareTemplate( "IF" , compName , "MA" , retLoopCtrl );
-		retLoopCtrl.put( MapKeys.FAULTS_LIST , new ArrayList( 3 ) );
-		retLoopCtrl.get( MapKeys.FAULTS_LIST ).add( "default" );
+		MapUtils.addToMapEntry( retLoopCtrl , MapKeys.FAULTS_LIST , "default" );
 
 		template.setAttribute( "invalidExpressionValue" , 1 );
 		template.setAttribute( "subLanguageExecutionFault" , 1 );
 		template.setAttribute( "uninitializedVariable" , 1 );
 		template.setAttribute( "faults" , "default" );
 
-		globalRet.put( MapKeys.FAULTS_LIST , new ArrayList( 3 ) );
-		globalRet.get( MapKeys.FAULTS_LIST ).add( "invalidExpressionValue" );
-		globalRet.get( MapKeys.FAULTS_LIST ).add( "subLanguageExecutionFault" );
-		globalRet.get( MapKeys.FAULTS_LIST ).add( "uninitializedVariable" );
+		MapUtils.addToMapEntry( globalRet , MapKeys.FAULTS_LIST , "invalidExpressionValue" , "subLanguageExecutionFault" , "uninitializedVariable" );
 
 		int count = 1;
 		int elseIfCount = BPELFile.getChildrenByTagLocalName( el , "elseif" ).size( );
@@ -853,7 +551,7 @@ public class TemplateMaker {
 			template.setAttribute( "hasElse" , count );
 		}
 
-		globalRet = MapUtils.addToBIPCode( template.toString( ) , globalRet );
+		MapUtils.addToBIPCode( globalRet , template.toString( ) );
 		return retLoopCtrl;
 	}
 
@@ -870,7 +568,7 @@ public class TemplateMaker {
 
 		// then add the compound component
 		String templateName = "COND";
-		String compName = "cond_" + ( tmplInst.getSize( ) + 1 );
+		String compName = "cond_" + ( templateList.getSize( ) + 1 );
 		StringTemplate template = prepareTemplate( templateName , compName , "MA" , ret );
 
 		// add childComp to template
@@ -879,10 +577,16 @@ public class TemplateMaker {
 			template.setAttribute( MapKeys.CHILD_COMP , childComp.get( i ) );
 		}
 
-		ret = exportPorts( vars , new HashMap( ) , template , ret , false );
+		exportPorts( vars , new HashMap( ) , template , ret , false );
 
 		// //////
-		int count =BPELFile.getChildrenByTagLocalName( el , "elseif" ).size( ) + BPELFile.getChildrenByTagLocalName( el , "else" ).size( ) + 1; // plus one since at least one if
+		int count = BPELFile.getChildrenByTagLocalName( el , "elseif" ).size( ) + BPELFile.getChildrenByTagLocalName( el , "else" ).size( ) + 1; // plus
+																																					// one
+																																					// since
+																																					// at
+																																					// least
+																																					// one
+																																					// if
 		for ( int i = 0 ; i < count ; i++ ) {
 			ArrayList < String > startDisPort = new ArrayList < String >( count );
 			startDisPort.add( String.valueOf( i + 2 ) );
@@ -899,10 +603,10 @@ public class TemplateMaker {
 		template.setAttribute( "countless" , count );
 		template.setAttribute( "count" , count + 1 );
 
-		ret = MapUtils.addToBIPCode( applyRDV( count , true ) , ret );
-		ret = MapUtils.addToBIPCode( applyRDV( count + 1 , true ) , ret );
-		ret = MapUtils.addToBIPCode( applyANY( count , true ) , ret );
-		ret = MapUtils.addToBIPCode( template.toString( ) , ret );
+		MapUtils.addToBIPCode( ret , applyRDV( count , true ) );
+		MapUtils.addToBIPCode( ret , applyRDV( count + 1 , true ) );
+		MapUtils.addToBIPCode( ret , applyANY( count , true ) );
+		MapUtils.addToBIPCode( ret , template.toString( ) );
 		return ret;
 
 	}
@@ -913,8 +617,8 @@ public class TemplateMaker {
 		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
 		HashMap < String , ArrayList > vars = stack.peek( );
 		String templateName = "COND2";
-		String compName = "cond2_" + ( tmplInst.getSize( ) + 1 );
-		String returnedControllersName = "switch_" + ( tmplInst.getSize( ) + 1 );
+		String compName = "cond2_" + ( templateList.getSize( ) + 1 );
+		String returnedControllersName = "switch_" + ( templateList.getSize( ) + 1 );
 		StringTemplate template = prepareTemplate( templateName , compName , "MA" , ret );
 
 		// Controller is created through the same template as COND2
@@ -930,7 +634,7 @@ public class TemplateMaker {
 		ArrayList < Element > caseElements = BPELFile.getChildrenByTagLocalName( el , "case" );
 		for ( Element elem : caseElements ) {
 			HashMap < String , ArrayList > evalRet = applyBOOLEVAL( elem , stack );
-			ret = MapUtils.addToBIPCode( ( String ) evalRet.get( MapKeys.BIP_CODE ).get( 0 ) , ret );
+			MapUtils.addToBIPCode( ret , ( String ) evalRet.get( MapKeys.BIP_CODE ).get( 0 ) );
 			addAsChild( vars , evalRet );
 		}
 		int caseElementsSize = caseElements.size( );
@@ -987,16 +691,16 @@ public class TemplateMaker {
 			AttrFiller.addToTemplate( startDisPort , template , "startDis" );
 		}
 
-		ret = exportPorts( vars , new HashMap( ) , template , ret , false );
+		exportPorts( vars , new HashMap( ) , template , ret , false );
 
 		template.setAttribute( "count" , count );
 		template.setAttribute( "countless" , count - 1 );
 
-		ret = MapUtils.addToBIPCode( applyRDV( count , true ) , ret );
-		ret = MapUtils.addToBIPCode( applyCP2EB( 0 , 1 ) , ret );
-		ret = MapUtils.addToBIPCode( applyANY( count , true ) , ret );
-		ret = MapUtils.addToBIPCode( applyANY( count - 1 , true ) , ret );
-		ret = MapUtils.addToBIPCode( template.toString( ) , ret );
+		MapUtils.addToBIPCode( ret , applyRDV( count , true ) );
+		MapUtils.addToBIPCode( ret , applyCP2EB( 0 , 1 ) );
+		MapUtils.addToBIPCode( ret , applyANY( count , true ) );
+		MapUtils.addToBIPCode( ret , applyANY( count - 1 , true ) );
+		MapUtils.addToBIPCode( ret , template.toString( ) );
 		return ret;
 
 	}
@@ -1009,8 +713,8 @@ public class TemplateMaker {
 
 		// create a loop controller component
 		HashMap < String , ArrayList > retLoopCtrl = new HashMap < String , ArrayList >( );
-		String compName = type + "_" + ( tmplInst.getSize( ) + 1 ); // e.g.
-																	// "while_"
+		String compName = type + "_" + ( templateList.getSize( ) + 1 ); // e.g.
+		// "while_"
 		StringTemplate template = prepareTemplate( type.toUpperCase( ) , compName , "MA" , retLoopCtrl );
 
 		if ( type.equals( "forEach" ) ) {
@@ -1030,7 +734,7 @@ public class TemplateMaker {
 			if ( completionConditionElems.size( ) > 0 ) {
 				Element condEl = completionConditionElems.get( 0 );
 				ExpressionParsingUtils.processExpression( condEl , "branches" , stack , retLoopCtrl , template , "completionCondition" , "1" );
-				retLoopCtrl.get( MapKeys.FAULTS_LIST ).add( "invalidBranchCondition" );
+				MapUtils.addToMapEntry( retLoopCtrl , MapKeys.FAULTS_LIST , "invalidBranchCondition" );
 				template.setAttribute( "invalidBranchCondition" , 1 );
 
 				String successOnly = condEl.getAttribute( "successfulBranchesOnly" );
@@ -1040,7 +744,8 @@ public class TemplateMaker {
 				if ( !successOnly.equals( "no" ) ) {
 					template.setAttribute( "successfulBranchesOnly" , 1 );
 					template.setAttribute( "completionConditionFailure" , 1 );
-					retLoopCtrl.get( MapKeys.FAULTS_LIST ).add( "completionConditionFailure" );
+					MapUtils.addToMapEntry( retLoopCtrl , MapKeys.FAULTS_LIST , "completionConditionFailure" );
+
 				}
 			}
 
@@ -1052,7 +757,7 @@ public class TemplateMaker {
 
 		}
 
-		ret = MapUtils.addToBIPCode( template.toString( ) , ret );
+		MapUtils.addToBIPCode( ret , template.toString( ) );
 
 		// add the loop controller component to the children
 		addAsChild( vars , retLoopCtrl ); // adds the ret as the last component
@@ -1062,7 +767,7 @@ public class TemplateMaker {
 
 		// then add the loop component(compound)
 		String templateName = "LOOP";
-		compName = "loop_" + ( tmplInst.getSize( ) + 1 );
+		compName = "loop_" + ( templateList.getSize( ) + 1 );
 		template = prepareTemplate( "LOOP" , compName , "MA" , ret );
 
 		// add childComp to template
@@ -1072,7 +777,7 @@ public class TemplateMaker {
 		}
 
 		HashMap templatePortsMap = new HashMap( );
-		ret = exportPorts( vars , templatePortsMap , template , ret , false );
+		exportPorts( vars , templatePortsMap , template , ret , false );
 
 		// //////
 		int count = childComp.size( );
@@ -1090,10 +795,10 @@ public class TemplateMaker {
 		}
 		template.setAttribute( "count" , count );
 
-		ret = MapUtils.addToBIPCode( applyRDV( count , true ) , ret );
-		ret = MapUtils.addToBIPCode( applyANY( count , true ) , ret );
-		ret = MapUtils.addToBIPCode( applyBRDCAST( 3 , 1 , false ) , ret );
-		ret = MapUtils.addToBIPCode( template.toString( ) , ret );
+		MapUtils.addToBIPCode( ret , applyRDV( count , true ) );
+		MapUtils.addToBIPCode( ret , applyANY( count , true ) );
+		MapUtils.addToBIPCode( ret , applyBRDCAST( 3 , 1 , false ) );
+		MapUtils.addToBIPCode( ret , template.toString( ) );
 		return ret;
 
 	}
@@ -1103,8 +808,8 @@ public class TemplateMaker {
 			throws Exception {
 
 		StringTemplate template = AttrFiller.getTemplate( templateFile , tmplName );
-		template.setAttribute( "id" , tmplInst.getSize( ) + 1 );
-		tmplInst.addInstance( compName );
+		template.setAttribute( "id" , templateList.getSize( ) + 1 );
+		templateList.addInstance( compName );
 		MapUtils.addToMap( ret , MapKeys.CHILD_COMP , compName , -1 );
 		MapUtils.addToMap( ret , MapKeys.SCOPE_ROLES , scopeRole , -1 );
 		return template;
@@ -1114,10 +819,10 @@ public class TemplateMaker {
 	private HashMap < String , ArrayList > applyALARM( Element elem , ArrayDeque < HashMap < String , ArrayList >> stack ) throws Exception {
 
 		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
-		String compName = "alarm_" + ( tmplInst.getSize( ) + 1 );
+		String compName = "alarm_" + ( templateList.getSize( ) + 1 );
 		String tmplName = "ALARM";
 		StringTemplate template = prepareTemplate( tmplName , compName , "MA" , ret );
-		MapUtils.addToBIPCode( applyPortTypeDecl( 2 , 0 ) , ret );
+		MapUtils.addToBIPCode( ret , applyPortTypeDecl( 2 , 0 ) );
 
 		// for and until can be either element or attribute
 		String timeExp = "", repeatExp = "";
@@ -1152,7 +857,7 @@ public class TemplateMaker {
 		if ( hasRepeat ) {
 			template.setAttribute( "repeatEvery" , repeatExp );
 		}
-		ret = MapUtils.addToBIPCode( "\n\n" + template.toString( ) , ret );
+		MapUtils.addToBIPCode( ret , "\n\n" + template.toString( ) );
 		return ret;
 	}
 
@@ -1165,14 +870,14 @@ public class TemplateMaker {
 		addAsChild( vars , retReceive ); // adds the ret as the last component
 
 		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
-		String compName = "onAlarm_" + ( tmplInst.getSize( ) + 1 );
+		String compName = "onAlarm_" + ( templateList.getSize( ) + 1 );
 		String tmplName = "ONALARM";
 
 		StringTemplate template = prepareTemplate( tmplName , compName , "MA" , ret );
 
 		// add code from receive to ret
-		String codeFromAlarm = ( String ) MapUtils.getMapSingleEntry( retReceive , MapKeys.BIP_CODE );
-		ret = MapUtils.addToBIPCode( codeFromAlarm , ret );
+		String codeFromAlarm = ( String ) MapUtils.getSingleEntry( retReceive , MapKeys.BIP_CODE );
+		MapUtils.addToBIPCode( ret , codeFromAlarm );
 
 		// bring the act's returned to the 2nd or 1st place in vars
 		// if parent is eventHandler and if there is a repeatEvery
@@ -1181,7 +886,7 @@ public class TemplateMaker {
 		changeChildIndex( fromPlace , 0 , vars );
 
 		HashMap templatePortsMap = new HashMap( );
-		ret = exportPorts( vars , templatePortsMap , template , ret , false );
+		exportPorts( vars , templatePortsMap , template , ret , false );
 
 		// add childComp to template
 		ArrayList childComp = ( ArrayList ) vars.get( MapKeys.CHILD_COMP );
@@ -1191,16 +896,16 @@ public class TemplateMaker {
 		int count = childComp.size( );
 		template.setAttribute( "count" , count );
 
-		ret = MapUtils.addToBIPCode( applyRDV( count , true ) , ret );
-		ret = MapUtils.addToBIPCode( applyANY( count , true ) , ret );
-		ret = MapUtils.addToBIPCode( applyBRDCAST( count , 1 , false ) , ret );
-		ret = MapUtils.addToBIPCode( "\n\n" + template.toString( ) , ret );
+		MapUtils.addToBIPCode( ret , applyRDV( count , true ) );
+		MapUtils.addToBIPCode( ret , applyANY( count , true ) );
+		MapUtils.addToBIPCode( ret , applyBRDCAST( count , 1 , false ) );
+		MapUtils.addToBIPCode( ret , "\n\n" + template.toString( ) );
 		return ret;
 
 	}
 
 
-	public boolean needsDuplicateComponent( Element elem ) {
+	public static boolean needsDuplicateComponent( Element elem ) {
 
 		if ( ( elem.getNodeName( ).endsWith( "forEach" ) && ( elem.getAttribute( "parallel" ) != null ) && elem.getAttribute( "parallel" ) == "yes" ) ) {
 			return true;
@@ -1227,14 +932,14 @@ public class TemplateMaker {
 		addAsChild( vars , retReceive ); // adds the ret as the last component
 
 		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
-		String compName = "onMessage_" + ( tmplInst.getSize( ) + 1 );
+		String compName = "onMessage_" + ( templateList.getSize( ) + 1 );
 		String tmplName = "ONMESSAGE";
 
 		StringTemplate template = prepareTemplate( tmplName , compName , "MA" , ret );
 
 		// add code from receive to ret
-		String codeFromReceive = ( String ) MapUtils.getMapSingleEntry( retReceive , MapKeys.BIP_CODE );
-		ret = MapUtils.addToBIPCode( codeFromReceive , ret );
+		String codeFromReceive = ( String ) MapUtils.getSingleEntry( retReceive , MapKeys.BIP_CODE );
+		MapUtils.addToBIPCode( ret , codeFromReceive );
 		if ( NodeName.getNodeName( ( ( Element ) elem.getParentNode( ) ).getTagName( ) ).equals( NodeName.PICK )
 				&& !NodeName.getNodeName( ( ( Element ) elem ).getTagName( ) ).equals( NodeName.ON_ALARM ) ) {
 			// add rcvMsgPorts and as onMsgPorts to ret
@@ -1247,7 +952,7 @@ public class TemplateMaker {
 		changeChildIndex( fromPlace , 0 , vars );
 
 		HashMap templatePortsMap = new HashMap( );
-		ret = exportPorts( vars , templatePortsMap , template , ret , false );
+		exportPorts( vars , templatePortsMap , template , ret , false );
 		if ( NodeName.getNodeName( ( ( Element ) elem.getParentNode( ) ).getTagName( ) ).equals( NodeName.PICK )
 				&& !NodeName.getNodeName( ( ( Element ) elem ).getTagName( ) ).equals( NodeName.ON_ALARM ) ) {
 			ret.remove( MapKeys.RCV_MESSAGE_PORTS );
@@ -1261,124 +966,21 @@ public class TemplateMaker {
 		int count = childComp.size( );
 		template.setAttribute( "count" , count );
 
-		ret = MapUtils.addToBIPCode( applyRDV( count , true ) , ret );
-		ret = MapUtils.addToBIPCode( applyANY( count , true ) , ret );
-		ret = MapUtils.addToBIPCode( applyBRDCAST( count , 1 , false ) , ret );
-		ret = MapUtils.addToBIPCode( "\n\n" + template.toString( ) , ret );
+		MapUtils.addToBIPCode( ret , applyRDV( count , true ) );
+		MapUtils.addToBIPCode( ret , applyANY( count , true ) );
+		MapUtils.addToBIPCode( ret , applyBRDCAST( count , 1 , false ) );
+		MapUtils.addToBIPCode( ret , "\n\n" + template.toString( ) );
 		return ret;
 
 	}
 
 
 	/* String[] intLists, String fault */
-	public HashMap < String , ArrayList > applyRECEIVE( Element elem , ArrayDeque < HashMap < String , ArrayList >> stack ) throws Exception {
-
-		// either receive or listn (for onEvent, onMessage)
-		String tmplName = ( NodeName.getNodeName( elem.getTagName( ) ).equals( NodeName.RECEIVE ) ) ? "RECEIVE" : "LISTN";
-
-		String s = "\n";
-		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
-		MapUtils.addToMap( ret , MapKeys.SCOPE_ROLES , "MA" , -1 );
-
-		ret.put( MapKeys.WRITE_PORTS , new ArrayList < Object >( 1 ) );
-		ret.put( MapKeys.RCV_MESSAGE_PORTS , new ArrayList < Object >( 1 ) );
-		ret.put( MapKeys.FAULTS_LIST , new ArrayList < Object >( ) );
-		ret.put( MapKeys.IMA_PORTS , new ArrayList < Object >( 1 ) );
-
-		ret.get( MapKeys.FAULTS_LIST ).add( "conflictingReceive" );
-		ret.get( MapKeys.FAULTS_LIST ).add( "conflictingRequest" );
-		ret.get( MapKeys.FAULTS_LIST ).add( "ambiguousReceive" );
-		ret.get( MapKeys.FAULTS_LIST ).add( "invalidVariables" );
-
-		s += applyPortTypeDecl( 0 , 1 );
-		s += applyPortTypeDecl( 1 , 0 );
-
-		StringTemplate template = AttrFiller.getTemplate( templateFile , tmplName );
-
-		template.setAttribute( "id" , tmplInst.getSize( ) + 1 );
-		String compName = tmplName.toLowerCase( ) + "_" + ( tmplInst.getSize( ) + 1 );
-		tmplInst.addInstance( compName );
-		MapUtils.addToMap( ret , MapKeys.CHILD_COMP , compName , -1 );
-
-		String partnerLink = elem.getAttribute( "partnerLink" );
-		String operation = elem.getAttribute( "operation" );
-		String messageExchange = "";
-		if ( elem.hasAttribute( "messageExchange" ) ) {
-			messageExchange = elem.getAttribute( "messageExchange" );
-		}
-
-		String plop = partnerLink + "_" + operation;
-		template.setAttribute( "plop" , plop );
-
-		// //
-
-		WSDLFile wsdl_spec = findMessageActivityWSDL( stack , elem );
-		String portType = getPortType( stack , elem , wsdl_spec );
-
-		// /////////////////////////////////////////////////////////////////
-
-		IOMsgPort newIma = new IOMsgPort( compName , "" , operation , partnerLink , messageExchange );
-		( ( ArrayList < Object > ) ret.get( MapKeys.IMA_PORTS ) ).add( newIma );
-		// if the receive has an output, add port also to ioma
-		if ( wsdl_spec.getOperationsOutput( portType , operation ) ) {
-			// ret.put("ioma", new ArrayList<Object>(1));
-			// ((ArrayList<Object>) ret.get("ioma")).add(newIma);
-			template.setAttribute( "isRcvIO" , "1" );
-			newIma.setRcvIO( true );
-			setScopeOpenIMA( newIma , stack , partnerLink , messageExchange );
-		}
-		setScopePartnerLink( newIma , stack , partnerLink );
-		TreeMap < String , String > extractedCSs = extractCorrSets( elem );
-		addIMAInfo( elem , extractedCSs , template , newIma , stack , "initiateList" );
-		s += applyPortTypeDecl( extractedCSs.size( ) , 3 );
-		if ( newIma.getOrderedCSs( ).size( ) > 0 ) {
-			( ( ArrayList < Object > ) ret.get( MapKeys.FAULTS_LIST ) ).add( "correlationViolation" );
-		}
-		addVarParts( stack , elem , newIma );
-
-		// /////////////////////////////////////////////////////////////////
-
-		RwPort writePort = createWritePort( compName , elem , template , stack , ret );
-
-		// /////////////////////////////////////////////////////////////////
-
-		// add in the first place of an ArrayList associated to the
-		// entry 'plop'
-		HashMap < String , ArrayList > conflImas = new HashMap < String , ArrayList >( 1 );
-		conflImas.put( plop , new ArrayList < Object >( 1 ) );
-		ArrayList < String > conflIma = new ArrayList < String >( 2 );
-		conflIma.add( "1" );
-		conflIma.add( plop );
-		conflImas.get( plop ).add( conflIma );
-
-		// //////////////////////////////////////////////////////////////////
-		int numMsg = ( needsDuplicateComponent( elem ) ) ? 2 : 1;
-		if ( template.getName( ).equals( "LISTN" ) ) {
-			template.setAttribute( "numMsg" , numMsg );
-			if ( NodeName.getNodeName( ( ( Element ) elem.getParentNode( ) ).getTagName( ) ).equals( NodeName.PICK ) ) {
-				template.setAttribute( "withExit" , true );
-			}
-		}
-		if ( elem.getNodeName( ).equals( "receive" ) && elem.hasAttribute( "createInstance" ) && elem.getAttribute( "createInstance" ).equals( "yes" ) ) {
-			template.setAttribute( "createInstance" , 1 );
-		} else if ( elem.getParentNode( ).getNodeName( ).equals( "pick" ) && ( ( Element ) elem.getParentNode( ) ).hasAttribute( "createInstance" )
-				&& ( ( Element ) elem.getParentNode( ) ).getAttribute( "createInstance" ).equals( "yes" ) ) {
-			template.setAttribute( "createInstance" , 1 );
-		}
-		( ( ArrayList < Object > ) ret.get( MapKeys.RCV_MESSAGE_PORTS ) ).add( newIma.clonePort( ) );
-		ret = MapUtils.addToBIPCode( "\n" + s + "\n\n" + template.toString( ) , ret );
-		return ret;
-	}
-
-
 	public HashMap < String , ArrayList > applyREPLY( Element elem , ArrayDeque < HashMap < String , ArrayList >> stack ) throws Exception {
 
 		String s = "\n";
 		s += applyCHKMR( false );
 		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
-		ret.put( MapKeys.READ_PORTS , new ArrayList < Object >( 1 ) );
-		ret.put( MapKeys.OMA_PORTS , new ArrayList < Object >( 1 ) );
-		ret.put( MapKeys.FAULTS_LIST , new ArrayList < Object >( ) );
 		ret.put( "sndMsgPorts" , new ArrayList < Object >( 0 ) );
 		MapUtils.addToMap( ret , MapKeys.SCOPE_ROLES , "MA" , -1 );
 
@@ -1387,9 +989,9 @@ public class TemplateMaker {
 
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "REPLY" );
 
-		template.setAttribute( "id" , tmplInst.getSize( ) + 1 );
-		String compName = "reply_" + ( tmplInst.getSize( ) + 1 );
-		tmplInst.addInstance( compName );
+		template.setAttribute( "id" , templateList.getSize( ) + 1 );
+		String compName = "reply_" + ( templateList.getSize( ) + 1 );
+		templateList.addInstance( compName );
 		MapUtils.addToMap( ret , MapKeys.CHILD_COMP , compName , -1 );
 
 		String partnerLink = elem.getAttribute( "partnerLink" );
@@ -1399,32 +1001,31 @@ public class TemplateMaker {
 			messageExchange = elem.getAttribute( "messageExchange" );
 		}
 
-		( ( ArrayList < Object > ) ret.get( MapKeys.FAULTS_LIST ) ).add( "missingRequest" );
-		( ( ArrayList < Object > ) ret.get( MapKeys.FAULTS_LIST ) ).add( "uninitializedVariable" );
+		MapUtils.addToMapEntry( ret , MapKeys.FAULTS_LIST , "missingRequest" , "uninitializedVariable" );
 
 		// //////////////////////////////////////////////////////////////////
 		IOMsgPort newOma = new IOMsgPort( compName , "" , operation , partnerLink , messageExchange );
-		addVarParts( stack , elem , newOma );
+		newOma.addVarParts( stack , elem );
 
-		( ( ArrayList < Object > ) ret.get( MapKeys.OMA_PORTS ) ).add( newOma );
+		MapUtils.addToMapEntry( ret , MapKeys.OMA_PORTS , newOma );
 
-		setScopeOpenIMA( newOma , stack , partnerLink , messageExchange );
-		setScopePartnerLink( newOma , stack , partnerLink );
+		newOma.setScopeOpenIMA( stack , partnerLink , messageExchange );
+		newOma.setScopePartnerLink( stack , partnerLink );
 		Map < String , String > extractedCSs = extractCorrSets( elem );
-		addIMAInfo( elem , extractedCSs , template , newOma , stack , "initiateList" );
+		newOma.addIMAInfo( elem , extractedCSs , template , stack , "initiateList" );
 		s += applyPortTypeDecl( newOma.getOrderedCSs( ).size( ) , 2 );
 		if ( newOma.isWithCS( ) ) {
-			( ( ArrayList < Object > ) ret.get( MapKeys.FAULTS_LIST ) ).add( "correlationViolation" );
+			MapUtils.addToMapEntry( ret , MapKeys.FAULTS_LIST , "correlationViolation" );
 		}
 		// /////////////////////////////////////////////////////////////////
 
 		RwPort readPort = createReadPort( compName , elem , template , stack , ret );
 
 		// //////////////////////////////////////////////////////////////////
-		( ( ArrayList < Object > ) ret.get( "sndMsgPorts" ) ).add( newOma.clonePort( ) );
+		MapUtils.addToMapEntry( ret , "sndMsgPorts" , newOma.clonePort( ) );
 
 		s += "\n\n" + template.toString( );
-		ret = MapUtils.addToBIPCode( s , ret );
+		MapUtils.addToBIPCode( ret , s );
 
 		return ret;
 	}
@@ -1439,12 +1040,12 @@ public class TemplateMaker {
 	 * @param mapKey
 	 * @return
 	 */
-	private Object findInMapOfEnclosingScopes( ArrayDeque < HashMap < String , ArrayList >> stack , String searchValue , String mapKey ) {
+	public static Object findInMapOfEnclosingScopes( ArrayDeque < HashMap < String , ArrayList >> stack , String searchValue , String mapKey ) {
 
 		Iterator < HashMap < String , ArrayList >> it = stack.iterator( );
 		HashMap < String , ArrayList > vars;
 		while ( ( vars = it.next( ) ) != null ) {
-			HashMap < String , Object > varsEntry = ( HashMap < String , Object > ) MapUtils.getMapSingleEntry( vars , mapKey );
+			HashMap < String , Object > varsEntry = ( HashMap < String , Object > ) MapUtils.getSingleEntry( vars , mapKey );
 			if ( varsEntry == null || !varsEntry.containsKey( searchValue ) ) {
 				continue;
 			}
@@ -1454,7 +1055,7 @@ public class TemplateMaker {
 	}
 
 
-	private WSDLFile findReferencedWsdl( ArrayDeque < HashMap < String , ArrayList >> stack , String nspacedName , String tag ,
+	public static WSDLFile findReferencedWsdl( ArrayDeque < HashMap < String , ArrayList >> stack , String nspacedName , String tag ,
 			HashMap < String , ArrayList < String > > nspaceL_to_paths ) {
 
 		// get the wsdl of this partnerLinkType
@@ -1486,7 +1087,7 @@ public class TemplateMaker {
 	}
 
 
-	private String getPortType( ArrayDeque < HashMap < String , ArrayList >> stack , Element elem , WSDLFile wsdl_spec ) {
+	public static String getPortType( ArrayDeque < HashMap < String , ArrayList >> stack , Element elem , WSDLFile wsdl_spec ) {
 
 		if ( elem.getAttribute( "portType" ) == null ) {
 			ArrayList < String > partnerLinkEntry = ( ArrayList < String > ) findInMapOfEnclosingScopes( stack , elem.getAttribute( "partnerLink" ) ,
@@ -1503,7 +1104,7 @@ public class TemplateMaker {
 	}
 
 
-	private WSDLFile findMessageActivityWSDL( ArrayDeque < HashMap < String , ArrayList >> stack , Element elem ) {
+	public static WSDLFile findMessageActivityWSDL( ArrayDeque < HashMap < String , ArrayList >> stack , Element elem ) {
 
 		WSDLFile wsdl_spec = null;
 		String partnerLink = elem.getAttribute( "partnerLink" );
@@ -1531,22 +1132,13 @@ public class TemplateMaker {
 	public HashMap < String , ArrayList > applyINVOKE( Element elem , ArrayDeque < HashMap < String , ArrayList >> stack ) throws Exception {
 
 		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
-		ret.put( MapKeys.WRITE_PORTS , new ArrayList < Object >( 1 ) );
-		ret.put( MapKeys.READ_PORTS , new ArrayList < Object >( 1 ) );
-		ret.put( MapKeys.FAULTS_LIST , new ArrayList < Object >( ) );
-		ret.put( MapKeys.INV_PORTS , new ArrayList < Object >( 1 ) );
-		ret.put( MapKeys.INV_IMA_PORTS , new ArrayList < Object >( 1 ) );
-		ret.put( MapKeys.CHILD_COMP , new ArrayList < Object >( 1 ) );
-		MapUtils.addToMap( ret , MapKeys.SCOPE_ROLES , "MA" , -1 );
-		ret.get( MapKeys.FAULTS_LIST ).add( "uninitializedVariable" );
-		ret.put( MapKeys.RCV_MESSAGE_PORTS , new ArrayList < Object >( 1 ) );
-		ret.put( "sndMsgPorts" , new ArrayList < Object >( 1 ) );
+		MapUtils.addToMapEntry( ret , MapKeys.FAULTS_LIST , "uninitializedVariable" );
 
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "INVOKE" );
 		// String s = "";
-		template.setAttribute( "id" , tmplInst.getSize( ) + 1 );
-		String compName = "invoke_" + ( tmplInst.getSize( ) + 1 );
-		tmplInst.addInstance( compName );
+		template.setAttribute( "id" , templateList.getSize( ) + 1 );
+		String compName = "invoke_" + ( templateList.getSize( ) + 1 );
+		templateList.addInstance( compName );
 		MapUtils.addToMap( ret , MapKeys.CHILD_COMP , compName , -1 );
 
 		String operation = elem.getAttribute( "operation" );
@@ -1558,25 +1150,29 @@ public class TemplateMaker {
 
 		/* One outgoing message */
 		IOMsgPort sndMsg = new IOMsgPort( compName , "" , operation , partnerLink , "" );
-		( ( ArrayList < Object > ) ret.get( MapKeys.INV_PORTS ) ).add( sndMsg );
-		addVarParts( stack , elem , sndMsg );
+		MapUtils.addToMapEntry( ret , MapKeys.INV_PORTS , sndMsg );
+		sndMsg.addVarParts( stack , elem );
 		RwPort readPort = createReadPort( compName , elem , template , stack , ret );
 
 		/* One incoming message */
 		IOMsgPort rcvMsg = new IOMsgPort( compName , "" , operation , partnerLink , "" );
-		addVarParts( stack , elem , rcvMsg );
+		rcvMsg.addVarParts( stack , elem );
 		if ( elem.hasAttribute( "outputVariable" ) ) {
-			( ( ArrayList < Object > ) ret.get( MapKeys.FAULTS_LIST ) ).add( "invalidVariables" );
-			( ( ArrayList < Object > ) ret.get( MapKeys.INV_IMA_PORTS ) ).add( rcvMsg );
-			( ( ArrayList < Object > ) ret.get( MapKeys.RCV_MESSAGE_PORTS ) ).add( rcvMsg.clonePort( ) );
-			RwPort writePort = createWritePort( compName , elem , template , stack , ret );
+			MapUtils.addToMapEntry( ret , MapKeys.FAULTS_LIST , "invalidVariables" );
+			MapUtils.addToMapEntry( ret , MapKeys.INV_IMA_PORTS , rcvMsg );
+			MapUtils.addToMapEntry( ret , MapKeys.RCV_MESSAGE_PORTS , rcvMsg.clonePort( ) );
+
+			RwPort writePort = new RwPort( );
+			writePort.parsePort( compName , stack , elem , ret );
+			writePort.applyTemplate( template );
+			// writePort.applyTemplate(template, stack, ret);
 		}
 
-	ArrayList < Element > cssElems = bcompiler.bpelFile.getChildrenInWrapper( elem , "correlations" , "correlation" );
+		ArrayList < Element > cssElems = XMLFile.getChildrenInWrapper( elem , "correlations" , "correlation" );
 		HashMap < String , String > CSIns = new HashMap < String , String >( );
 		HashMap < String , String > CSOuts = new HashMap < String , String >( );
 		if ( cssElems.size( ) > 0 ) {
-			( ( ArrayList < Object > ) ret.get( MapKeys.FAULTS_LIST ) ).add( "correlationViolation" );
+			MapUtils.addToMapEntry( ret , MapKeys.FAULTS_LIST , "correlationViolation" );
 			for ( Element csElement : cssElems ) {
 				String initiate = ( csElement.hasAttribute( "initiate" ) ) ? csElement.getAttribute( "initiate" ) : "no";
 				String pattern = ( csElement.hasAttribute( "pattern" ) ) ? pattern = csElement.getAttribute( "pattern" ) : "request";
@@ -1592,8 +1188,8 @@ public class TemplateMaker {
 			}
 		}
 
-		addIMAInfo( elem , CSIns , template , rcvMsg , stack , "initiateListIn" );
-		addIMAInfo( elem , CSOuts , template , sndMsg , stack , "initiateListOut" );
+		rcvMsg.addIMAInfo( elem , CSIns , template , stack , "initiateListIn" );
+		sndMsg.addIMAInfo( elem , CSOuts , template , stack , "initiateListOut" );
 
 		// ///////////////////////////////////////////////////////////////////
 
@@ -1610,9 +1206,9 @@ public class TemplateMaker {
 		String [ ] faultEntry = wsdl_spec.getOperationsFault( portType , operation );
 		if ( faultEntry[ 0 ] != null ) {
 			faultName = faultEntry[ 0 ] + "_" + faultEntry[ 1 ];
-			int faultCode = faults2codes.get( faultName );
+			int faultCode = faults.getFaultName( faultName );
 			faultName = faultName.replace( ":" , "__" );
-			ret.get( MapKeys.FAULTS_LIST ).add( faultName );
+			MapUtils.addToMapEntry( ret , MapKeys.FAULTS_LIST , faultName );
 			template.setAttribute( "faultName" , faultName );
 			template.setAttribute( "faultCode" , faultCode );
 		}
@@ -1628,7 +1224,7 @@ public class TemplateMaker {
 			if ( initializePRole.equals( "yes" ) ) {
 				template.setAttribute( "initializePRole" , "0" );
 			} else {
-				ret.get( MapKeys.FAULTS_LIST ).add( "uninitializedPartnerRole" );
+				MapUtils.addToMapEntry( ret , MapKeys.FAULTS_LIST , "uninitializedPartnerRole" );
 			}
 		} else {
 			throw new Exception( "partner link not found" );
@@ -1638,9 +1234,9 @@ public class TemplateMaker {
 		sndMsg.setInitializePRole( initializePRole );
 
 		// //////////////////////////////////////////////////
-		( ( ArrayList < Object > ) ret.get( "sndMsgPorts" ) ).add( sndMsg.clonePort( ) );
+		MapUtils.addToMapEntry( ret , "sndMsgPorts" , sndMsg.clonePort( ) );
 
-		ret = MapUtils.addToBIPCode( "\n\n" + template.toString( ) , ret );
+		MapUtils.addToBIPCode( ret , "\n\n" + template.toString( ) );
 		return ret;
 	}
 
@@ -1688,10 +1284,7 @@ public class TemplateMaker {
 
 		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
 
-		ret.put( MapKeys.CHILD_COMP , new ArrayList( 1 ) );
-		ret.put( MapKeys.COMPEN_PORTS , new ArrayList( ) );
-		ret.put( "faultNames" , new ArrayList( 1 ) );
-		ret.get( "faultNames" ).add( "default" );
+		MapUtils.addToMapEntry( ret , "faultNames" , "default" );
 		MapUtils.addToMap( ret , MapKeys.SCOPE_ROLES , "MA" , -1 );
 
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "COMPENSATE" );
@@ -1703,7 +1296,7 @@ public class TemplateMaker {
 		if ( scopeName == null ) {
 			scopeName = "";
 		}
-		String id = String.valueOf( tmplInst.getSize( ) + 1 );
+		String id = String.valueOf( templateList.getSize( ) + 1 );
 		String compName = "Compensate";
 		if ( scopeName.equals( "" ) ) {
 			compName += "_" + id;
@@ -1718,7 +1311,7 @@ public class TemplateMaker {
 			// scope2ids map
 			// else add it in the map
 			HashMap < String , ArrayList > enclScope = findEnclosingScope( stack , true );
-			HashMap < String , Integer > scopes2ids = ( HashMap < String , Integer > ) MapUtils.getMapSingleEntry( enclScope , MapKeys.SCOPE_IDS );
+			HashMap < String , Integer > scopes2ids = ( HashMap < String , Integer > ) MapUtils.getSingleEntry( enclScope , MapKeys.SCOPE_IDS );
 			if ( scopes2ids.containsKey( scopeName ) ) {
 				scopeCompenId = scopes2ids.get( scopeName );
 			} else {
@@ -1727,11 +1320,11 @@ public class TemplateMaker {
 			}
 			template.setAttribute( "scopeCompenId" , scopeCompenId );
 		}
-		tmplInst.addInstance( compName );
+		templateList.addInstance( compName );
 
 		CompenPort compPort = new CompenPort( compName , "" , scopeName );
-		ret.get( MapKeys.COMPEN_PORTS ).add( compPort );
-		template.setAttribute( "id" , tmplInst.getSize( ) );
+		MapUtils.addToMapEntry( ret , MapKeys.COMPEN_PORTS , compPort );
+		template.setAttribute( "id" , templateList.getSize( ) );
 
 		MapUtils.addToMap( ret , MapKeys.CHILD_COMP , compName , -1 );
 
@@ -1739,7 +1332,7 @@ public class TemplateMaker {
 		s += applyPortTypeDecl( 2 , 0 );
 		s += applyPortTypeDecl( 1 , 0 );
 		s += "\n\n" + template.toString( );
-		MapUtils.addToBIPCode( s , ret );
+		MapUtils.addToBIPCode( ret , s );
 		return ret;
 	}
 
@@ -1748,21 +1341,19 @@ public class TemplateMaker {
 
 		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
 
-		ret.put( MapKeys.EXIT_PORTS , new ArrayList( 1 ) );
-		String compName = "Exit_" + ( tmplInst.getSize( ) + 1 );
+		String compName = "Exit_" + ( templateList.getSize( ) + 1 );
 		String tmplName = "EXIT";
 		StringTemplate template = prepareTemplate( tmplName , compName , "MA" , ret );
-		ArrayList exitPort = new ArrayList( 1 );
-		exitPort.add( 1 );
+		ArrayList exitPort = ( ArrayList ) Arrays.asList( new int [ ] { 1 } );
 		MapUtils.addToMap( ret , MapKeys.EXIT_PORTS , exitPort , -1 );
-		return MapUtils.addToBIPCode( template.toString( ) , ret );
+		return MapUtils.addToBIPCode( ret , template.toString( ) );
 	}
 
 
 	public HashMap < String , ArrayList > applyThrow( Element elem , ArrayDeque < HashMap < String , ArrayList >> stack ) throws Exception {
 
 		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
-		String compName = "Throw_" + ( tmplInst.getSize( ) + 1 );
+		String compName = "Throw_" + ( templateList.getSize( ) + 1 );
 		String tmplName = "THROW";
 		StringTemplate template = prepareTemplate( tmplName , compName , "MA" , ret );
 
@@ -1771,24 +1362,24 @@ public class TemplateMaker {
 
 		String catchCompleteName = getFaultCompleteName( elem , stack );
 		// if this is a custom fault
-		int faultCode = ( catchCompleteName.equals( "all" ) ) ? 0 : getFaultName( catchCompleteName );
+		int faultCode = ( catchCompleteName.equals( "all" ) ) ? 0 : faults.getFaultName( catchCompleteName );
 		template.setAttribute( "faultCode" , faultCode );
 		MapUtils.addToMap( ret , MapKeys.FAULTS_LIST , throwPort , -1 );
-		return MapUtils.addToBIPCode( template.toString( ) , ret );
+		return MapUtils.addToBIPCode( ret , template.toString( ) );
 	}
 
 
 	public HashMap < String , ArrayList > applyRethrow( Element elem , ArrayDeque < HashMap < String , ArrayList >> stack ) throws Exception {
 
 		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
-		String compName = "Rethrow_" + ( tmplInst.getSize( ) + 1 );
+		String compName = "Rethrow_" + ( templateList.getSize( ) + 1 );
 		String tmplName = "RETHROW";
 		StringTemplate template = prepareTemplate( tmplName , compName , "MA" , ret );
 
 		ArrayList rethrowPort = new ArrayList( 1 );
 		rethrowPort.add( 1 );
 		MapUtils.addToMap( ret , MapKeys.RETHROW_PORTS , rethrowPort , -1 );
-		return MapUtils.addToBIPCode( template.toString( ) , ret );
+		return MapUtils.addToBIPCode( ret , template.toString( ) );
 	}
 
 
@@ -1797,13 +1388,9 @@ public class TemplateMaker {
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "COPY" );
 		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
 
-		ret.put( MapKeys.READ_PORTS , new ArrayList( ) );
-		ret.put( MapKeys.WRITE_PORTS , new ArrayList( ) );
-		ret.put( MapKeys.FAULTS_LIST , new ArrayList( ) );
-
-		String compName = "copy_" + ( tmplInst.getSize( ) + 1 );
-		template.setAttribute( "id" , ( tmplInst.getSize( ) + 1 ) );
-		tmplInst.addInstance( compName );
+		String compName = "copy_" + ( templateList.getSize( ) + 1 );
+		template.setAttribute( "id" , ( templateList.getSize( ) + 1 ) );
+		templateList.addInstance( compName );
 		MapUtils.addToMap( ret , MapKeys.CHILD_COMP , compName , -1 );
 
 		/* get the read partsList */
@@ -1816,150 +1403,12 @@ public class TemplateMaker {
 
 		/* get the write partsList */
 		Element toElement = XMLFile.getChildrenByTagLocalName( elem , "to" ).get( 0 );
-		RwPort writePort = createWritePort( compName , toElement , template , stack , ret );
+
+		RwPort writePort = new RwPort( );
+		writePort.parsePort( compName , stack , toElement , ret );
+		writePort.applyTemplate( template );
 		// /////////////////////////////////////////////////////////
-		ret = MapUtils.addToBIPCode( template.toString( ) , ret );
-		return ret;
-	}
-
-
-	public HashMap < String , ArrayList > applyASSIGN( Element elem , ArrayDeque < HashMap < String , ArrayList >> stack ) throws Exception {
-
-		// [assigned/read] by each copy
-		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
-		ret.put( MapKeys.READ_PORTS , new ArrayList( ) );
-		ret.put( MapKeys.WRITE_PORTS , new ArrayList( ) );
-
-		MapUtils.addToMap( ret , MapKeys.SCOPE_ROLES , "MA" , -1 );
-		MapUtils.addToBIPCode( applyRDV( 2 , true ) , ret );
-		MapUtils.addToBIPCode( applyRDV( 2 , false ) , ret );
-		MapUtils.addToBIPCode( applyANY( 2 , true ) , ret );
-		ret = MapUtils.addToBIPCode( applyEMPTYHANDLER( "assign" ) , ret );
-
-		// StringTemplateART calculate template's signature
-		StringTemplate template = AttrFiller.getTemplate( templateFile , "ASSIGN" );
-		String templateNum = String.valueOf( tmplInst.getSize( ) + 1 );
-		String compName = "assign_" + templateNum;
-		template.setAttribute( "id" , templateNum );
-		tmplInst.addInstance( compName );
-		MapUtils.addToMap( ret , MapKeys.CHILD_COMP , compName , -1 );
-
-		HashMap < String , ArrayList > vars = stack.peek( );
-		ArrayList components = vars.get( MapKeys.CHILD_COMP );
-		for ( Object component : components ) {
-			if ( component == null ) {
-				continue;
-			}
-			template.setAttribute( MapKeys.CHILD_COMP , component );
-		}
-		int count = components.size( );
-
-		HashMap templatePortsMap = new HashMap( );
-		ret = manageFaultsList( vars , templatePortsMap , template , ret , false );
-
-		// manageReadWritePorts: StringTemplateART
-		// 1: declare map entries for ports' transformation
-		ArrayList < String > entries = new ArrayList < String >( Arrays.asList( new String [ ] { MapKeys.READ_PORTS } ) );
-		// 2: initialize reusable info by adding entries to vars
-		initializePortsTransform( vars , entries );
-		// 3: transform ports
-		transformMapEntryPorts( vars , templatePortsMap , template , ret , entries , false );
-		// 4: do custom jobs depending on the activity under translation PAST
-		// ENTRIES
-		// 5: erase temporary map entries
-		finalizePortsTransform( vars );
-		// manageReadWritePorts: END
-
-		/* WritePort */
-
-		HashMap scope2port = new HashMap( );
-		if ( ( components = vars.get( MapKeys.WRITE_PORTS ) ) != null ) {
-			// place leftmost ports with variables in higher scopes
-			for ( int i = 0 ; i < components.size( ) ; i++ ) {
-				ArrayList < RwPort > writePorts = ( ArrayList < RwPort > ) components.get( i );
-				if ( writePorts == null ) {
-					continue;
-				}
-				for ( RwPort writePortInStack : writePorts ) {
-					String firstPart = ( String ) writePortInStack.getVarParts( ).get( 0 );
-					// extract the variable's name
-					String variable = firstPart.split( "_" )[ 0 ];
-					// find in stack the index of the scope where it's declared
-
-					Iterator it = stack.iterator( );
-					int j = stack.size( );
-					// for each scope's order (low scopes -> higher j)
-					while ( it.hasNext( ) ) {
-						j--;
-						HashMap < String , ArrayList > curr_map = ( HashMap < String , ArrayList > ) it.next( );
-						// first check in BPEL Variables
-						HashMap < String , ArrayList < String >> variables = ( HashMap < String , ArrayList < String >> ) MapUtils.getMapSingleEntry(
-								curr_map , MapKeys.VARIABLES );
-						ArrayList < String > parts;
-						if ( variables == null || ( parts = variables.get( variable ) ) == null ) {
-							// then check in BPEL partner links
-							variables = ( HashMap < String , ArrayList < String >> ) MapUtils.getMapSingleEntry( curr_map , MapKeys.PARTNER_LINKS );
-							if ( variables == null || ( parts = variables.get( variable ) ) == null ) {
-								continue;
-							}
-						}
-						// if this variable is in this scope and has parts
-						if ( !scope2port.containsKey( j ) ) {
-							scope2port.put( j , new ArrayList( ) );
-						}
-						// add component index (i) (i.e. port's index) to
-						// the list of the scope index (j): i.e. scope J defines
-						// the variable of port i
-						( ( ArrayList ) scope2port.get( j ) ).add( i );
-						break;
-					}
-				}
-			}
-			// create a sorted list of scope indices
-
-			ArrayList < Integer > scope_inds = new ArrayList < Integer >( scope2port.keySet( ) );
-			Collections.sort( scope_inds );
-
-			RwPort toExport = new RwPort( compName , "" );
-			int [ ] aasl = new int [ components.size( ) ];
-
-			int i = 0, sc_count = 0;
-			for ( Integer scope_ind : scope_inds ) {
-				ArrayList < String > scope_vars = new ArrayList < String >( );
-				toExport.getScopeVarParts( ).add( scope_vars );
-
-				for ( Integer curr_ind : ( ArrayList < Integer > ) scope2port.get( scope_ind ) ) {
-
-					RwPort writePort = ( RwPort ) ( ( ArrayList ) components.get( curr_ind ) ).get( 0 );
-					toExport.getVarParts( ).addAll( writePort.getVarParts( ) ); // TODO:
-																				// to
-																				// go
-					scope_vars.addAll( writePort.getVarParts( ) );
-
-					/* add to the array for the AASD template */
-					aasl[ i++ ] = writePort.getVarParts( ).size( );
-
-					ArrayList < String > toTemplate = writePort.toArray4Template( "expWPorts" );
-					AttrFiller.addToTemplate( toTemplate , template , "expWPorts" );
-				}
-			}
-			/* array for the AASD template */
-
-			// template.setAttribute("sumCount", toExport.getVarParts().size());
-			ret = MapUtils.addToBIPCode( applyAAS( aasl , true ) , ret );
-			ret.get( MapKeys.WRITE_PORTS ).add( toExport );
-		}
-
-		if ( count > 1 ) {
-			template.setAttribute( "count" , count );
-			ret = MapUtils.addToBIPCode( applyRDV( count , true ) , ret );
-			ret = MapUtils.addToBIPCode( applyANY( count , true ) , ret );
-		}
-		ArrayList al = new ArrayList( 1 );
-		al.add( templatePortsMap );
-		template.setAttribute( "ports" , al );
-
-		ret = MapUtils.addToBIPCode( template.toString( ) , ret );
+		MapUtils.addToBIPCode( ret , template.toString( ) );
 		return ret;
 	}
 
@@ -1968,18 +1417,17 @@ public class TemplateMaker {
 			throws Exception {
 
 		// this function does not call exportPorts
-		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
 		String s = "\n";
 		s += applyPortTypeDecl( 2 , 0 );
 		StringTemplate template = ( process ) ? AttrFiller.getTemplate( templateFile , "PROC" ) : AttrFiller.getTemplate( templateFile , "SCOPE" );
-		MapUtils.addToMap( ret , MapKeys.SCOPE_ROLES , "MA" , -1 );
 
-		HashMap < String , ArrayList > vars = stack.peek( );
-		ret.put( MapKeys.FAULTS_LIST , new ArrayList( ) );
-		ret.get( MapKeys.FAULTS_LIST ).add( "missingReply" );
+		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
+		MapUtils.addToMap( ret , MapKeys.SCOPE_ROLES , "MA" , -1 );
+		MapUtils.addToMapEntry( ret , MapKeys.FAULTS_LIST , "missingReply" );
 
 		// SEE WHICH SCOPE ROLES EXIST
 		// the ArrayLists of the entries may have empty places
+		HashMap < String , ArrayList > vars = stack.peek( );
 		ArrayList varsChildComp = vars.get( MapKeys.CHILD_COMP );
 		String [ ] childComp = new String [ varsChildComp.size( ) ];
 		for ( int i = 0 ; i < varsChildComp.size( ) ; i++ ) {
@@ -2009,7 +1457,7 @@ public class TemplateMaker {
 		}
 
 		if ( template.getAttribute( "eh" ) == null ) {
-			ret = MapUtils.addToBIPCode( applyEMPTYHANDLER( "eh" ) , ret );
+			MapUtils.addToBIPCode( ret , applyEMPTYHANDLER( "eh" ) );
 		}
 		if ( template.getAttribute( "fh" ) == null ) {
 			HashMap < String , ArrayList > retFH = applyDEFAULT_FH( elem , stack );
@@ -2019,27 +1467,27 @@ public class TemplateMaker {
 		}
 		if ( template.getAttribute( "ch" ) == null ) {
 			if ( process ) {
-				ret = MapUtils.addToBIPCode( applyEMPTYHANDLER( "ch" ) , ret );
+				MapUtils.addToBIPCode( ret , applyEMPTYHANDLER( "ch" ) );
 			} else {
 				if ( vars.containsKey( MapKeys.RVRS_PORTS ) && vars.get( MapKeys.RVRS_PORTS ).size( ) > 0 ) {
 					HashMap < String , ArrayList > retCH = applyDEFAULT_CH( elem , stack );
 					addAsChild( vars , retCH );
 					template.setAttribute( "ch" , retCH.get( MapKeys.CHILD_COMP ).get( 0 ) );
 				} else {
-					ret = MapUtils.addToBIPCode( applyEMPTYHANDLER( "ch" ) , ret );
+					MapUtils.addToBIPCode( ret , applyEMPTYHANDLER( "ch" ) );
 				}
 			}
 		}
 		if ( template.getAttribute( "th" ) == null ) {
 			if ( process ) {
-				ret = MapUtils.addToBIPCode( applyEMPTYHANDLER( "th" ) , ret );
+				MapUtils.addToBIPCode( ret , applyEMPTYHANDLER( "th" ) );
 			} else {
 				if ( vars.containsKey( MapKeys.RVRS_PORTS ) && vars.get( MapKeys.RVRS_PORTS ).size( ) > 0 ) {
 					HashMap < String , ArrayList > retTH = applyDEFAULT_TH( elem , stack );
 					addAsChild( vars , retTH );
 					template.setAttribute( "th" , retTH.get( MapKeys.CHILD_COMP ).get( 0 ) );
 				} else {
-					ret = MapUtils.addToBIPCode( applyEMPTYHANDLER( "th" ) , ret );
+					MapUtils.addToBIPCode( ret , applyEMPTYHANDLER( "th" ) );
 				}
 			}
 		}
@@ -2078,7 +1526,7 @@ public class TemplateMaker {
 		 * } template.setAttribute("isolated", isolated); }
 		 */
 
-		String templateId = ( String ) MapUtils.getMapSingleEntry( vars , MapKeys.ID );
+		String templateId = ( String ) MapUtils.getSingleEntry( vars , MapKeys.ID );
 		template.setAttribute( "id" , templateId );
 
 		String scopeName = sanitize( elem.getAttribute( "name" ) );
@@ -2092,7 +1540,7 @@ public class TemplateMaker {
 		if ( !process ) {
 			int scopeCompenId = -1;
 			HashMap < String , ArrayList > enclScope = findEnclosingScope( stack , true );
-			HashMap < String , Integer > scopes2ids = ( HashMap < String , Integer > ) MapUtils.getMapSingleEntry( enclScope , MapKeys.SCOPE_IDS );
+			HashMap < String , Integer > scopes2ids = ( HashMap < String , Integer > ) MapUtils.getSingleEntry( enclScope , MapKeys.SCOPE_IDS );
 			if ( scopes2ids.containsKey( scopeName ) ) {
 				scopeCompenId = scopes2ids.get( scopeName );
 			} else {
@@ -2110,14 +1558,13 @@ public class TemplateMaker {
 		}
 
 		// replace the templateId with the compName
-		tmplInst.rmvInstance( templateId );
+		templateList.rmvInstance( templateId );
 		MapUtils.addToMap( ret , MapKeys.CHILD_COMP , compName , -1 );
 		// add a reverse port
 		if ( !process ) {
-			ret.put( MapKeys.RVRS_PORTS , new ArrayList( 1 ) );
 			// add a port that will enable the scope to be reversed
 			RvrsPort rvrsPort = new RvrsPort( scopeName , "" );
-			ret.get( MapKeys.RVRS_PORTS ).add( rvrsPort );
+			MapUtils.addToMapEntry( ret , MapKeys.RVRS_PORTS , rvrsPort );
 		}
 
 		HashMap templatePortsMap = new HashMap( );
@@ -2131,9 +1578,9 @@ public class TemplateMaker {
 		// 4: do custom jobs depending on the activity under translation
 		HashSet < String > dataList; // the var.parts in scope that were used
 										// either for read or write
-		
+
 		if ( ( dataList = ( HashSet < String > ) vars.get( MapKeys.DATA_LIST ).get( 0 ) ) != null ) {
-			//dataList.addAll( plSet );
+			// dataList.addAll( plSet );
 			for ( String data : ( HashSet < String > ) dataList ) {
 				template.setAttribute( "dataList" , data );
 			}
@@ -2170,7 +1617,6 @@ public class TemplateMaker {
 
 		ArrayList < Object > compPorts;
 		if ( ( compPorts = vars.get( MapKeys.COMPEN_PORTS ) ) != null ) {
-			ret.put( MapKeys.COMPEN_PORTS , new ArrayList < Object >( ) );
 
 			s += applyPortTypeDecl( 2 , 0 );
 			s += applyConnTemplate( "FLTCMP" );
@@ -2266,7 +1712,7 @@ public class TemplateMaker {
 						// the compPort
 						else {
 							s += applyCPEB( 1 , 0 , true );
-							ret.get( MapKeys.COMPEN_PORTS ).add( compPort );
+							MapUtils.addToMapEntry( ret , MapKeys.COMPEN_PORTS , compPort );
 
 							ArrayList < String > expComp = compPort.toArray4Template( "expComp" );
 							MapUtils.addToMap( templatePortsMap , "expComp" , expComp , -1 );
@@ -2310,7 +1756,7 @@ public class TemplateMaker {
 
 						} else {
 							s += applyCPEB( 1 , 0 , true );
-							ret.get( MapKeys.COMPEN_PORTS ).add( compPort );
+							MapUtils.addToMapEntry( ret , MapKeys.COMPEN_PORTS , compPort );
 
 							ArrayList < String > expComp = compPort.toArray4Template( "expComp" );
 							MapUtils.addToMap( templatePortsMap , "expComp" , expComp , -1 );
@@ -2339,10 +1785,8 @@ public class TemplateMaker {
 				}
 			}
 			if ( process && atLeastOne ) {
-				ArrayList al = new ArrayList( 1 );
-				al.add( "1" );
-				ret.put( MapKeys.EXIT_PORTS , new ArrayList( 1 ) );
-				ret.get( MapKeys.EXIT_PORTS ).add( al );
+				List exitPort = Arrays.asList( new String [ ] { "1" } );
+				MapUtils.addToMapEntry( ret , MapKeys.EXIT_PORTS , exitPort );
 			}
 
 		}
@@ -2379,8 +1823,7 @@ public class TemplateMaker {
 			}
 			// add the faultsList to the returned map
 			if ( componentsWithFaults.size( ) > 0 ) {
-				ret.put( MapKeys.FAULTS_LIST , new ArrayList( 1 ) );
-				ret.get( MapKeys.FAULTS_LIST ).add( "default" );
+				MapUtils.addToMapEntry( ret , MapKeys.FAULTS_LIST , "default" );
 			}
 		}
 
@@ -2392,7 +1835,7 @@ public class TemplateMaker {
 		TreeSet < String > meSet = new TreeSet( );
 		TreeSet < String > plSet = new TreeSet( );
 
-		HashMap < String , ArrayList > pl2info = ( HashMap < String , ArrayList > ) MapUtils.getMapSingleEntry( vars , MapKeys.PARTNER_LINKS );
+		HashMap < String , ArrayList > pl2info = ( HashMap < String , ArrayList > ) MapUtils.getSingleEntry( vars , MapKeys.PARTNER_LINKS );
 		HashSet < String > partnerLinks = null;
 		if ( pl2info != null ) {
 			partnerLinks = new HashSet < String >( pl2info.keySet( ) );
@@ -2405,7 +1848,6 @@ public class TemplateMaker {
 			ArrayList checkImaPorts4Template = new ArrayList( );
 			ArrayList disableImaPorts4Template = new ArrayList( );
 
-			ret.put( MapKeys.IMA_PORTS , new ArrayList < Object >( ) );
 			for ( int i = 0 ; i < components.size( ) ; i++ ) {
 				ArrayList < Object > componentsImas = ( ArrayList < Object > ) components.get( i );
 				if ( componentsImas == null ) {
@@ -2501,12 +1943,11 @@ public class TemplateMaker {
 						}
 						MapUtils.addToMap( templatePortsMap , "expIma" , toTemplate , -1 );
 						MapUtils.addToMap( templatePortsMap , "expDisIma" , toTemplate , -1 );
-						ret.get( MapKeys.IMA_PORTS ).add( imaPort );
+						MapUtils.addToMapEntry( ret , MapKeys.IMA_PORTS , imaPort );
 					} else {
 						String connName = applyCHKRC5Name( csHNum , csENum , cfHNum , meHNum , plHNum , withExport , withCS );
-						ret = MapUtils.addToBIPCode(
-								applyCHKRC5( csHNum , csENum , cfHNum , cfENum , meHNum , plHNum , withExport , withCS , connName , boolNumInDHS ) ,
-								ret );
+						MapUtils.addToBIPCode( ret ,
+								applyCHKRC5( csHNum , csENum , cfHNum , cfENum , meHNum , plHNum , withExport , withCS , connName , boolNumInDHS ) );
 
 						ArrayList msgList = new ArrayList( boolNumInDHS );
 						for ( String [ ] CS : csHereList ) {
@@ -2523,7 +1964,7 @@ public class TemplateMaker {
 							conflSet.add( imaPort.getCorrelationSetLabel( "" ) );
 						}
 						if ( meHNum > 0 ) {
-							msgList.add( "me_"+imaPort.getMessageExchangeLabel( ) );
+							msgList.add( "me_" + imaPort.getMessageExchangeLabel( ) );
 						}
 						s += applyPortTypeDecl( csHNum + csENum , 3 );
 
@@ -2552,7 +1993,7 @@ public class TemplateMaker {
 							map_disable.put( "cfHList" , cfHList );
 							if ( cfENum + plENum > 0 ) {
 								// disIma goes higher
-								ret = MapUtils.addToBIPCode( applyRDV( 2 , true ) , ret );
+								MapUtils.addToBIPCode( ret , applyRDV( 2 , true ) );
 								map_disable.put( "withExport" , "D" );
 							}
 							disableImaPorts4Template.add( map_disable );
@@ -2577,7 +2018,7 @@ public class TemplateMaker {
 						imaPort.getOrderedCSLabels( ).removeAll( cfHereList );
 
 						if ( csENum + cfENum + plENum + meENum > 0 ) {
-							ret.get( MapKeys.IMA_PORTS ).add( imaPort );
+							MapUtils.addToMapEntry( ret , MapKeys.IMA_PORTS , imaPort );
 						}
 					}// END add port to template with the right entry
 
@@ -2591,8 +2032,7 @@ public class TemplateMaker {
 			 * handle conflicting ima
 			 */
 			HashMap < String , ArrayList < ArrayList >> retConflImaMap = new HashMap < String , ArrayList < ArrayList >>( );
-			ret.put( MapKeys.CONFL_IMA_PORTS , new ArrayList( 1 ) );
-			ret.get( MapKeys.CONFL_IMA_PORTS ).add( retConflImaMap );
+			MapUtils.addToMapEntry( ret , MapKeys.CONFL_IMA_PORTS , retConflImaMap );
 			HashMap < String , ArrayList > conflImaMap = uniteConflImaPorts( vars );
 
 			// for each receive with the same partnerLink and operation (pl_op)
@@ -2640,7 +2080,6 @@ public class TemplateMaker {
 
 			ArrayList checkOmaPorts4Template = new ArrayList( );
 
-			ret.put( MapKeys.OMA_PORTS , new ArrayList( ) );
 			for ( int i = 0 ; i < components.size( ) ; i++ ) {
 				ArrayList < Object > componentsPorts = ( ArrayList < Object > ) components.get( i );
 				if ( componentsPorts == null ) {
@@ -2702,14 +2141,14 @@ public class TemplateMaker {
 						int boolNumInDHS = meHNum + csHNum;
 
 						String connName = applyCHKRPLName( csHNum , csENum , meHNum , withExport , withCS );
-						ret = MapUtils.addToBIPCode( applyCHKRPL( csHNum , csENum , meHNum , withExport , withCS , connName , boolNumInDHS ) , ret );
+						MapUtils.addToBIPCode( ret , applyCHKRPL( csHNum , csENum , meHNum , withExport , withCS , connName , boolNumInDHS ) );
 
 						ArrayList msgList = new ArrayList( boolNumInDHS );
 						for ( String [ ] CS : csHereList ) {
 							msgList.add( "cs_" + CS[ 0 ] );
 						}
 						if ( meHNum > 0 ) {
-							msgList.add( "me_"+omaPort.getMessageExchangeLabel( ) );
+							msgList.add( "me_" + omaPort.getMessageExchangeLabel( ) );
 						}
 						s += applyPortTypeDecl( csHNum + csENum , 3 );
 
@@ -2731,7 +2170,7 @@ public class TemplateMaker {
 
 					omaPort.getOrderedCSs( ).removeAll( csHereList );
 					if ( csENum + meENum > 0 ) {
-						ret.get( MapKeys.OMA_PORTS ).add( omaPort );
+						MapUtils.addToMapEntry( ret , MapKeys.OMA_PORTS , omaPort );
 					}
 				}
 			}
@@ -2781,8 +2220,6 @@ public class TemplateMaker {
 
 		if ( ( components = ( ArrayList < Object > ) vars.get( MapKeys.RCV_MESSAGE_PORTS ) ) != null && components.size( ) > 0 ) {
 
-			ret.put( MapKeys.RCV_MESSAGE_PORTS , new ArrayList( ) );
-
 			for ( int i = 0 ; i < components.size( ) ; i++ ) {
 				ArrayList < Object > componentsExps = ( ArrayList < Object > ) components.get( i );
 				if ( componentsExps == null ) {
@@ -2792,7 +2229,7 @@ public class TemplateMaker {
 					IOMsgPort ioPort = ( IOMsgPort ) componentsExps.get( j );
 
 					ioPort.setCompIndex( MapUtils.getScopeRole( childrenTag , i ) );
-					ret.get( MapKeys.RCV_MESSAGE_PORTS ).add( ioPort );
+					MapUtils.addToMapEntry( ret , MapKeys.RCV_MESSAGE_PORTS , ioPort );
 
 					ArrayList < String > toTemplate = null;
 					if ( ioPort.getOpenIMAScope( ).equals( templateId ) ) {
@@ -2800,15 +2237,15 @@ public class TemplateMaker {
 						// the meTag
 						toTemplate = ioPort.toArray4Template( MapKeys.RCV_MESSAGE_PORTS );
 						AttrFiller.addToTemplate( toTemplate , template , "rcvMsgPorts" );
-						ret = MapUtils.addToBIPCode( applyConnTemplate( "RDSC1" ) , ret );
+						MapUtils.addToBIPCode( ret , applyConnTemplate( "RDSC1" ) );
 					} else {
 						toTemplate = ioPort.toArray4Template( "" );
 						MapUtils.addToMap( templatePortsMap , "expRcvMsgPorts" , toTemplate , -1 );
 
-						ret = MapUtils.addToBIPCode( applyCPEB( 1 , 0 , true ) , ret );
+						MapUtils.addToBIPCode( ret , applyCPEB( 1 , 0 , true ) );
 					}
 					if ( process ) {
-						ret = MapUtils.addToBIPCode( applyCPEB( 1 , 0 , false ) , ret );
+						MapUtils.addToBIPCode( ret , applyCPEB( 1 , 0 , false ) );
 					}
 
 				}
@@ -2816,7 +2253,6 @@ public class TemplateMaker {
 		}
 
 		if ( ( components = ( ArrayList < Object > ) vars.get( "sndMsgPorts" ) ) != null && components.size( ) > 0 ) {
-			ret.put( MapKeys.SND_MESSAGE_PORTS , new ArrayList( ) );
 
 			for ( int i = 0 ; i < components.size( ) ; i++ ) {
 				ArrayList < IOMsgPort > componentsExps = ( ArrayList < IOMsgPort > ) components.get( i );
@@ -2827,24 +2263,25 @@ public class TemplateMaker {
 					IOMsgPort exp = componentsExps.get( j );
 					// set the component's index
 					exp.setCompIndex( MapUtils.getScopeRole( childrenTag , i ) );
-					ret.get( MapKeys.SND_MESSAGE_PORTS ).add( exp ); // add port
-																		// to
-																		// returned
+					MapUtils.addToMapEntry( ret , MapKeys.SND_MESSAGE_PORTS , exp ); // add
+																						// port
+					// to
+					// returned
 					// map
 
 					ArrayList < String > toTemplate;
 					if ( exp.getOpenIMAScope( ).equals( templateId ) ) {
 						toTemplate = exp.toArray4Template( "sndMsgPorts" );
-						ret = MapUtils.addToBIPCode( applyConnTemplate( "ASSC1" ) , ret );
+						MapUtils.addToBIPCode( ret , applyConnTemplate( "ASSC1" ) );
 						AttrFiller.addToTemplate( toTemplate , template , "sndMsgPorts" );
 					} else {
 						toTemplate = exp.toArray4Template( "expSndMsgPorts" );
 						MapUtils.addToMap( templatePortsMap , "expSndMsgPorts" , toTemplate , -1 );
 
-						ret = MapUtils.addToBIPCode( applyAAS( new int [ ] { 1 } , true ) , ret );
+						MapUtils.addToBIPCode( ret , applyAAS( new int [ ] { 1 } , true ) );
 					}
 					if ( process ) {
-						ret = MapUtils.addToBIPCode( applyAAS( new int [ ] { 1 } , false ) , ret );
+						MapUtils.addToBIPCode( ret , applyAAS( new int [ ] { 1 } , false ) );
 					}
 
 				}
@@ -2852,33 +2289,32 @@ public class TemplateMaker {
 		}
 
 		for ( String c : conflSet ) {
-			//if ( !dataList.contains( c ) ) {
-			//	dataList.add( c );
-				template.setAttribute( "corrSetLabels" , c );
-			//}
+			// if ( !dataList.contains( c ) ) {
+			// dataList.add( c );
+			template.setAttribute( "corrSetLabels" , c );
+			// }
 		}
 		for ( String c : plSet ) {
 			if ( !dataList.contains( c ) ) {
-				//dataList.add( c );
+				// dataList.add( c );
 				template.setAttribute( "dataList" , c );
 			}
 		}
 		for ( String c : csSet ) {
-			//if ( !dataList.contains( c ) ) {
-			//	dataList.add( c );
-				template.setAttribute( "csList" , c );
-			//}
+			// if ( !dataList.contains( c ) ) {
+			// dataList.add( c );
+			template.setAttribute( "csList" , c );
+			// }
 		}
 		for ( String c : meSet ) {
-			//if ( !dataList.contains( c ) ) {
-			//	dataList.add( "me_"+c );
-				template.setAttribute( "meList" , c );
-			//}
+			// if ( !dataList.contains( c ) ) {
+			// dataList.add( "me_"+c );
+			template.setAttribute( "meList" , c );
+			// }
 		}
 
 		// add this scope to returned onIMAs
-		ret.put( MapKeys.ON_IMA_PORTS , new ArrayList( 1 ) );
-		ret.get( MapKeys.ON_IMA_PORTS ).add( "1" );
+		MapUtils.addToMapEntry( ret , MapKeys.ON_IMA_PORTS , "1" );
 
 		// add onIMAs to scope
 		ArrayList < String > onIMAPort = new ArrayList < String >( 2 );
@@ -2894,13 +2330,13 @@ public class TemplateMaker {
 		}
 		onIMAPort.add( "DHS" );
 		int count = onIMAPort.size( );
-		ret = MapUtils.addToBIPCode( applyANY( count , true ) , ret );
-		ret = MapUtils.addToBIPCode( applyRDV( count , true ) , ret );
+		MapUtils.addToBIPCode( ret , applyANY( count , true ) );
+		MapUtils.addToBIPCode( ret , applyRDV( count , true ) );
 		onIMAPort.add( 0 , String.valueOf( count ) );
 		template.setAttribute( "onIMAs" , onIMAPort );
 
 		filler.addMapToTemplate( template , templatePortsMap , "ports" );
-		ret = MapUtils.addToBIPCode( s + template.toString( ) , ret );
+		MapUtils.addToBIPCode( ret , s + template.toString( ) );
 
 		return ret;
 	}
@@ -2913,8 +2349,6 @@ public class TemplateMaker {
 	public HashMap < String , ArrayList > applyFHW( Element elem , ArrayDeque < HashMap < String , ArrayList >> stack ) throws Exception {
 
 		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
-
-		ret.put( MapKeys.CHILD_COMP , new ArrayList( ) );
 
 		HashMap < String , ArrayList > vars = stack.peek( );
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "FHW" );
@@ -2930,36 +2364,33 @@ public class TemplateMaker {
 
 		String catchCompleteName = getFaultCompleteName( elem , stack );
 		// if this is a custom fault
-		int faultCode = ( catchCompleteName.equals( "all" ) ) ? 0 : getFaultName( catchCompleteName );
+		int faultCode = ( catchCompleteName.equals( "all" ) ) ? 0 : faults.getFaultName( catchCompleteName );
 		template.setAttribute( "handledFault" , faultCode );
 
-		String compName = catchCompleteName + "_" + ( tmplInst.getSize( ) + 1 );
+		String compName = catchCompleteName + "_" + ( templateList.getSize( ) + 1 );
 		template.setAttribute( "id" , compName );
-		( ( ArrayList ) ret.get( MapKeys.CHILD_COMP ) ).add( "fhw_" + compName );
+		MapUtils.addToMapEntry( ret , MapKeys.CHILD_COMP , "fhw_" + compName );
 		//
 		// ret.put(MapKeys.CATCH_COMPLETE_NAMES, new ArrayList());
 		// ret.get(MapKeys.CATCH_COMPLETE_NAMES).add(catchCompleteName);
 
 		HashMap templatePortsMap = new HashMap( );
-		ret = exportPorts( vars , templatePortsMap , template , ret , false );
+		exportPorts( vars , templatePortsMap , template , ret , false );
 
 		if ( vars.containsKey( MapKeys.RETHROW_PORTS ) && vars.get( MapKeys.RETHROW_PORTS ).size( ) > 0 ) {
 			template.setAttribute( "rethrow" , true );
-			if ( ret.get( MapKeys.FAULTS_LIST ) == null ) {
-				ret.put( MapKeys.FAULTS_LIST , new ArrayList( 1 ) );
-			}
-			ret.get( MapKeys.FAULTS_LIST ).add( "default" );
+			MapUtils.addToMapEntry( ret , MapKeys.FAULTS_LIST , "default" );
 		}
-		ret = MapUtils.addToBIPCode( applyConnTemplate( "ASSC1" ) , ret );
+		MapUtils.addToBIPCode( ret , applyConnTemplate( "ASSC1" ) );
 
 		/* (String childComp, String[] expFaults, String[][] expPorts) */
-		ArrayList childComp = ( ArrayList ) MapUtils.getMapSingleEntry( vars , MapKeys.CHILD_COMP );
+		ArrayList childComp = ( ArrayList ) MapUtils.getSingleEntry( vars , MapKeys.CHILD_COMP );
 		if ( childComp != null && childComp.size( ) > 0 ) {
 			template.setAttribute( "childComp" , childComp.get( 0 ) );
 		}
 
 		s += "\n\n" + template.toString( );
-		MapUtils.addToBIPCode( s , ret );
+		MapUtils.addToBIPCode( ret , s );
 		return ret;
 	}
 
@@ -2973,9 +2404,9 @@ public class TemplateMaker {
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "FH" );
 		String s = "\n";
 
-		String compName = "fh_" + ( tmplInst.getSize( ) + 1 );
-		tmplInst.addInstance( compName );
-		template.setAttribute( "id" , tmplInst.getSize( ) );
+		String compName = "fh_" + ( templateList.getSize( ) + 1 );
+		templateList.addInstance( compName );
+		template.setAttribute( "id" , templateList.getSize( ) );
 		MapUtils.addToMap( ret , MapKeys.CHILD_COMP , compName , -1 );
 
 		/*
@@ -2996,16 +2427,11 @@ public class TemplateMaker {
 			if ( all == -1 ) {
 				HashMap < String , ArrayList > retFH = applyDEFAULT_FHW( elem , stack );
 				addAsChild( vars , retFH );
-				// template.setAttribute("fh",
-				// retFH.get(MapKeys.CHILD_COMP).get(0));
-
-				// retAll.put(MapKeys.CATCH_COMPLETE_NAMES, new ArrayList(1));
-				// retAll.get(MapKeys.CATCH_COMPLETE_NAMES).add("all");
 			}
 
 		}
 		HashMap templatePortsMap = new HashMap( );
-		ret = exportPorts( vars , templatePortsMap , template , ret , false );
+		exportPorts( vars , templatePortsMap , template , ret , false );
 
 		components = vars.get( MapKeys.CHILD_COMP );
 		int FHNum = components.size( );
@@ -3021,7 +2447,7 @@ public class TemplateMaker {
 		s += "\n" + applyANY( FHNum , true );
 
 		s += "\n\n" + template.toString( );
-		ret = MapUtils.addToBIPCode( s , ret );
+		MapUtils.addToBIPCode( ret , s );
 		return ret;
 	}
 
@@ -3076,9 +2502,9 @@ public class TemplateMaker {
 		StringTemplate template = AttrFiller.getTemplate( templateFile , handlerName );
 		String s = "\n";
 
-		String compName = handlerName.toLowerCase( ) + "_" + ( tmplInst.getSize( ) + 1 );
-		tmplInst.addInstance( compName );
-		template.setAttribute( "id" , tmplInst.getSize( ) );
+		String compName = handlerName.toLowerCase( ) + "_" + ( templateList.getSize( ) + 1 );
+		templateList.addInstance( compName );
+		template.setAttribute( "id" , templateList.getSize( ) );
 		MapUtils.addToMap( ret , MapKeys.CHILD_COMP , compName , -1 );
 
 		ArrayList < Object > components = new ArrayList < Object >( );
@@ -3086,11 +2512,11 @@ public class TemplateMaker {
 			template.setAttribute( MapKeys.CHILD_COMP , components.get( 0 ) );
 		}
 		HashMap templatePortsMap = new HashMap( );
-		ret = exportPorts( vars , templatePortsMap , template , ret , false );
+		exportPorts( vars , templatePortsMap , template , ret , false );
 		s += "\n" + applyCP2EB( 1 , 0 );
 
 		s += "\n\n" + template.toString( );
-		ret = MapUtils.addToBIPCode( s , ret );
+		MapUtils.addToBIPCode( ret , s );
 		return ret;
 	}
 
@@ -3102,9 +2528,9 @@ public class TemplateMaker {
 		String s = "\n";
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "LS" );
 
-		template.setAttribute( "id" , ( tmplInst.getSize( ) + 1 ) );
-		String compName = "ls_" + ( tmplInst.getSize( ) + 1 );
-		tmplInst.addInstance( compName );
+		template.setAttribute( "id" , ( templateList.getSize( ) + 1 ) );
+		String compName = "ls_" + ( templateList.getSize( ) + 1 );
+		templateList.addInstance( compName );
 
 		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
 
@@ -3207,34 +2633,30 @@ public class TemplateMaker {
 	public HashMap < String , ArrayList > applyLSW( Element el , ArrayDeque < HashMap < String , ArrayList >> stack ) throws Exception {
 
 		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
-		ret.put( MapKeys.WRITE_LINK_PORTS , new ArrayList( 1 ) );
-		ret.put( MapKeys.READ_LINK_PORTS , new ArrayList( 1 ) );
-		ret.put( MapKeys.BIP_CODE , new ArrayList( 1 ) );
-		ret.put( MapKeys.FAULTS_LIST , new ArrayList < Object >( ) );
 
 		// StringTemplateART calculate template's signature
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "LSW" );
-		String templateNum = String.valueOf( tmplInst.getSize( ) + 1 );
+		String templateNum = String.valueOf( templateList.getSize( ) + 1 );
 		String compName = "lsw_" + templateNum;
 		template.setAttribute( "id" , templateNum );
-		tmplInst.addInstance( compName );
+		templateList.addInstance( compName );
 		MapUtils.addToMap( ret , MapKeys.CHILD_COMP , compName , -1 ); /* particular */
 
 		String linkName = sanitize( el.getAttribute( "linkName" ) );
 
 		RwPort wrtLnkPort = new RwPort( compName , "" );
-		wrtLnkPort.getVarParts( ).add( linkName );
-		ret.get( MapKeys.WRITE_LINK_PORTS ).add( wrtLnkPort );
-		ret.get( MapKeys.READ_LINK_PORTS ).add( wrtLnkPort.clone( ) );
+		wrtLnkPort.parts( ).add( linkName );
+		MapUtils.addToMapEntry( ret , MapKeys.WRITE_LINK_PORTS , wrtLnkPort );
+		MapUtils.addToMapEntry( ret , MapKeys.READ_LINK_PORTS , wrtLnkPort.clone( ) );
 
 		ExpressionParsingUtils.processExpression( el , "transitionCondition" , stack , ret , template , "expression" , "true" );
 
-		ret = MapUtils.addToBIPCode( applyCP2EB( 0 , 1 ) , ret );
-		ret = MapUtils.addToBIPCode( applyAAS( new int [ ] { 1 } , true ) , ret );
-		ret = MapUtils.addToBIPCode( applyConnTemplate( "RDD1" ) , ret );
-		ret = MapUtils.addToBIPCode( applyAAS( new int [ ] { 1 } , true ) , ret );
+		MapUtils.addToBIPCode( ret , applyCP2EB( 0 , 1 ) );
+		MapUtils.addToBIPCode( ret , applyAAS( new int [ ] { 1 } , true ) );
+		MapUtils.addToBIPCode( ret , applyConnTemplate( "RDD1" ) );
+		MapUtils.addToBIPCode( ret , applyAAS( new int [ ] { 1 } , true ) );
 
-		ret = MapUtils.addToBIPCode( template.toString( ) , ret );
+		MapUtils.addToBIPCode( ret , template.toString( ) );
 		return ret;
 
 	}
@@ -3246,9 +2668,9 @@ public class TemplateMaker {
 		String s = "\n";
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "SEQ" );
 
-		template.setAttribute( "id" , ( tmplInst.getSize( ) + 1 ) );
-		String compName = "seq_" + ( tmplInst.getSize( ) + 1 );
-		tmplInst.addInstance( compName );
+		template.setAttribute( "id" , ( templateList.getSize( ) + 1 ) );
+		String compName = "seq_" + ( templateList.getSize( ) + 1 );
+		templateList.addInstance( compName );
 
 		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
 		ret = sequencing( template , stack , ret );
@@ -3265,16 +2687,12 @@ public class TemplateMaker {
 
 		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
 
-		ret.put( MapKeys.READ_LINK_PORTS , new ArrayList( 1 ) );
-		ret.put( MapKeys.WRITE_LINK_PORTS , new ArrayList( 1 ) );
-
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "LT" );
-		String templateNum = String.valueOf( tmplInst.getSize( ) + 1 );
+		String templateNum = String.valueOf( templateList.getSize( ) + 1 );
 		String compName = "lt_" + templateNum;
 		template.setAttribute( "id" , templateNum );
-		tmplInst.addInstance( compName );
+		templateList.addInstance( compName );
 		MapUtils.addToMap( ret , MapKeys.CHILD_COMP , compName , -1 );
-		ret.put( MapKeys.FAULTS_LIST , new ArrayList < Object >( ) );
 
 		ArrayList < Element > targetElems = XMLFile.getChildrenByTagLocalName( targetsEl , "target" );
 		ArrayList < String > linkNames = new ArrayList < String >( targetElems.size( ) );
@@ -3300,7 +2718,7 @@ public class TemplateMaker {
 				j--;
 				HashMap < String , ArrayList > curr_map = ( HashMap < String , ArrayList > ) it.next( );
 
-				HashSet < String > links = ( HashSet < String > ) MapUtils.getMapSingleEntry( curr_map , MapKeys.LINKS );
+				HashSet < String > links = ( HashSet < String > ) MapUtils.getSingleEntry( curr_map , MapKeys.LINKS );
 				if ( links != null && links.contains( link ) ) {
 					flow_ind = j;
 					break;
@@ -3331,21 +2749,21 @@ public class TemplateMaker {
 		RwPort toExport = new RwPort( compName , "" );
 		int [ ] aasl = new int [ sortedLinks.size( ) ];
 		Arrays.fill( aasl , 1 );
-		toExport.getVarParts( ).addAll( sortedLinks );
+		toExport.parts( ).addAll( sortedLinks );
 
-		ret = MapUtils.addToBIPCode( applyAAS( aasl , true ) , ret );
-		ret.get( MapKeys.WRITE_LINK_PORTS ).add( toExport );
+		MapUtils.addToBIPCode( ret , applyAAS( aasl , true ) );
+		MapUtils.addToMapEntry( ret , MapKeys.WRITE_LINK_PORTS , toExport );
 
 		// //////////////////////////////////////////////////////////////
 		RwPort expReadLinksPort = new RwPort( compName , "" );
-		expReadLinksPort.getVarParts( ).addAll( linkNames );
-		ret.get( MapKeys.READ_LINK_PORTS ).add( expReadLinksPort );
+		expReadLinksPort.parts( ).addAll( linkNames );
+		MapUtils.addToMapEntry( ret , MapKeys.READ_LINK_PORTS , expReadLinksPort );
 
 		template.setAttribute( "linkNames" , linkNames );
 		template.setAttribute( "countLinks" , linkNames.size( ) );
-		ret = MapUtils.addToBIPCode( applyCP2EB( 0 , 1 ) , ret );
-		ret = MapUtils.addToBIPCode( applyRDVAR( linkNames.size( ) , false ) , ret );
-		ret = MapUtils.addToBIPCode( applyRDVAR( linkNames.size( ) , true ) , ret );
+		MapUtils.addToBIPCode( ret , applyCP2EB( 0 , 1 ) );
+		MapUtils.addToBIPCode( ret , applyRDVAR( linkNames.size( ) , false ) );
+		MapUtils.addToBIPCode( ret , applyRDVAR( linkNames.size( ) , true ) );
 
 		String joinCond = "";
 		ArrayList < Element > joinCondWrapper = XMLFile.getChildrenByTagLocalName( targetsEl , "joinCondition" );
@@ -3358,9 +2776,7 @@ public class TemplateMaker {
 			}
 
 			/* TODO:parse the expression and add faults */
-			ret.get( MapKeys.FAULTS_LIST ).add( "invalidExpressionValue" );
-			ret.get( MapKeys.FAULTS_LIST ).add( "subLanguageExecutionFault" );
-			ret.get( MapKeys.FAULTS_LIST ).add( "uninitializedVariable" );
+			MapUtils.addToMapEntry( ret , MapKeys.FAULTS_LIST , "invalidExpressionValue" , "subLanguageExecutionFault" , "uninitializedVariable" );
 
 		} else { /* if missing joinCondition, add the default one */
 			for ( int i = 0 ; i < linkNames.size( ) ; i++ ) {
@@ -3385,9 +2801,9 @@ public class TemplateMaker {
 		template.setAttribute( "joinCondition" , joinCond );
 
 		HashMap templatePortsMap = new HashMap( );
-		// ret = exportPorts(stack.peek(), templatePortsMap, template, ret,
+		// exportPorts(stack.peek(), templatePortsMap, template, ret,
 		// false);
-		ret = MapUtils.addToBIPCode( template.toString( ) , ret );
+		MapUtils.addToBIPCode( ret , template.toString( ) );
 		return ret;
 	}
 
@@ -3399,20 +2815,6 @@ public class TemplateMaker {
 		if ( vars.containsKey( MapKeys.CHILD_COMP ) ) {
 			toIndex = vars.get( MapKeys.CHILD_COMP ).size( );
 		}
-
-		// for ( String key : act.keySet( ) ) {
-		// if ( !vars.containsKey( key ) ) {
-		// vars.put( key , new ArrayList < Object >( toIndex ) );
-		// }
-		// while ( vars.get( key ).size( ) < toIndex ) {
-		// //if ( key.equals( MapKeys.CONFL_IMA_PORTS ) ) {
-		// //vars.get( key ).add( new HashMap < String , ArrayList >( 1 ) );
-		// //} else {
-		// vars.get( key ).add( new ArrayList < Object >( 1 ) );
-		// //}
-		// }
-		// vars.get( key ).add( act.get( key ) );
-		// }
 
 		for ( String key : act.keySet( ) ) {
 			if ( act.get( key ) == null || ( ( act.get( key ) instanceof ArrayList && act.get( key ).size( ) == 0 ) ) || MapKeys.isHashMapEntry( key )
@@ -3481,10 +2883,12 @@ public class TemplateMaker {
 			// now add to newIndex the 1st index
 			ArrayList actList;
 			if ( ( ( ArrayList ) vars.get( key ) ).size( ) > oldIndex ) {
-				// if oldIndex is represented in the key entry, retrieve and remove it
+				// if oldIndex is represented in the key entry, retrieve and
+				// remove it
 				actList = ( ArrayList ) vars.get( key ).remove( oldIndex );
 			} else {
-				// if oldIndex is not represented in the key entry, create an empty 
+				// if oldIndex is not represented in the key entry, create an
+				// empty
 				actList = new ArrayList( 1 );
 			}
 			// add the entry to the newIndex
@@ -3522,36 +2926,8 @@ public class TemplateMaker {
 		// add act as a last child
 		addAsChild( vars , act );
 		changeChildIndex( vars.get( MapKeys.CHILD_COMP ).size( ) - 1 , actNewInd , vars );
-//		//for each map entry
-//		for ( String key : act.keySet( ) ) {
-//			if ( !vars.containsKey( key ) ) {
-//				vars.put( key , new ArrayList < Object >( actOldInd ) );
-//				while ( vars.get( key ).size( ) < actOldInd ) {
-//					if ( key.equals( MapKeys.CONFL_IMA_PORTS ) ) {
-//						vars.get( key ).add( new HashMap < String , ArrayList >( 1 ) );
-//					} else {
-//						vars.get( key ).add( new ArrayList < Object >( 1 ) );
-//					}
-//				}
-//			}
-//			vars.get( key ).add( act.get( key ) );
-//		}
-//
-//		if ( actOldInd != actNewInd ) {
-//			for ( String key : vars.keySet( ) ) {
-//				ArrayList actList;
-//				if ( ( ( ArrayList ) vars.get( key ) ).size( ) > actOldInd ) {
-//					actList = ( ArrayList ) vars.get( key ).remove( actOldInd );
-//				} else {
-//					actList = new ArrayList( 1 );
-//				}
-//				vars.get( key ).add( actNewInd , actList );
-//			}
-//		}
-		// add all ArrayLists of the act hash map to the vars hashmap
-
 		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
-		ret = MapUtils.addToBIPCode( ( String ) act.get( MapKeys.BIP_CODE ).get( 0 ) , ret ); /**/
+		MapUtils.addToBIPCode( ret , ( String ) act.get( MapKeys.BIP_CODE ).get( 0 ) ); /**/
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "ACTW" );
 		/* component's name contains the name of the enclosed comp :actw_[comp] */
 		String childComp = ( String ) act.get( MapKeys.CHILD_COMP ).get( 0 );
@@ -3583,9 +2959,9 @@ public class TemplateMaker {
 		MapUtils.addToMap( ret , MapKeys.SCOPE_ROLES , "MA" , -1 );
 
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "PICK" );
-		template.setAttribute( "id" , tmplInst.getSize( ) + 1 );
-		String compName = "pick_" + ( tmplInst.getSize( ) + 1 );
-		tmplInst.addInstance( compName );
+		template.setAttribute( "id" , templateList.getSize( ) + 1 );
+		String compName = "pick_" + ( templateList.getSize( ) + 1 );
+		templateList.addInstance( compName );
 		MapUtils.addToMap( ret , MapKeys.CHILD_COMP , compName , -1 );
 
 		HashMap < String , ArrayList > vars = stack.peek( );
@@ -3593,9 +2969,9 @@ public class TemplateMaker {
 		int compNum = vars.get( MapKeys.CHILD_COMP ).size( );
 		template.setAttribute( "count" , String.valueOf( compNum ) );
 
-		ret = MapUtils.addToBIPCode( "\n" + applyRDV( compNum , false ) , ret );
-		ret = MapUtils.addToBIPCode( "\n" + applyRDV( compNum , true ) , ret );
-		ret = MapUtils.addToBIPCode( "\n" + applyANY( compNum , true ) , ret );
+		MapUtils.addToBIPCode( ret , "\n" + applyRDV( compNum , false ) );
+		MapUtils.addToBIPCode( ret , "\n" + applyRDV( compNum , true ) );
+		MapUtils.addToBIPCode( ret , "\n" + applyANY( compNum , true ) );
 
 		ArrayList < Object > components = vars.get( MapKeys.CHILD_COMP );
 
@@ -3605,7 +2981,7 @@ public class TemplateMaker {
 
 		ArrayList < Object > onMsgComponents = vars.get( MapKeys.ON_MESSAGE_PORTS );
 		if ( onMsgComponents != null ) {
-			ret = MapUtils.addToBIPCode( "\n" + applyPICKD( components.size( ) ) , ret );
+			MapUtils.addToBIPCode( ret , "\n" + applyPICKD( components.size( ) ) );
 
 			for ( int i = 0 ; i < onMsgComponents.size( ) ; i++ ) {
 				// get the onMsgPort, keep index and name
@@ -3648,9 +3024,9 @@ public class TemplateMaker {
 			}
 		}
 		HashMap templatePortsMap = new HashMap( );
-		ret = exportPorts( vars , templatePortsMap , template , ret , false );
+		exportPorts( vars , templatePortsMap , template , ret , false );
 
-		ret = MapUtils.addToBIPCode( "\n\n" + template.toString( ) , ret );
+		MapUtils.addToBIPCode( ret , "\n\n" + template.toString( ) );
 		return ret;
 	}
 
@@ -3703,10 +3079,10 @@ public class TemplateMaker {
 		HashMap < String , ArrayList > vars = stack.peek( );
 		HashMap templatePortsMap = new HashMap( );
 
-		String compName = "flowN_branch_" + ( tmplInst.getSize( ) + 1 );
+		String compName = "flowN_branch_" + ( templateList.getSize( ) + 1 );
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "FLOWN_BRANCH" );
-		template.setAttribute( "id" , ( tmplInst.getSize( ) + 1 ) );
-		tmplInst.addInstance( compName );
+		template.setAttribute( "id" , ( templateList.getSize( ) + 1 ) );
+		templateList.addInstance( compName );
 		MapUtils.addToMap( ret , MapKeys.CHILD_COMP , compName , -1 );
 
 		// add to map the data (i.e. index) handler for the branch
@@ -3721,8 +3097,8 @@ public class TemplateMaker {
 			template.setAttribute( MapKeys.CHILD_COMP , childComp );
 		}
 
-		ret = exportPorts( vars , templatePortsMap , template , ret , false );
-		ret = MapUtils.addToBIPCode( "\n\n" + template.toString( ) , ret );
+		exportPorts( vars , templatePortsMap , template , ret , false );
+		MapUtils.addToBIPCode( ret , "\n\n" + template.toString( ) );
 		return ret;
 
 	}
@@ -3742,14 +3118,14 @@ public class TemplateMaker {
 		String compName = "";
 
 		if ( Nbranches == -1 ) {
-			compName = "flow_" + ( tmplInst.getSize( ) + 1 );
+			compName = "flow_" + ( templateList.getSize( ) + 1 );
 			template = AttrFiller.getTemplate( templateFile , "FLOW" );
-			template.setAttribute( "id" , ( tmplInst.getSize( ) + 1 ) );
-			tmplInst.addInstance( compName );
+			template.setAttribute( "id" , ( templateList.getSize( ) + 1 ) );
+			templateList.addInstance( compName );
 			MapUtils.addToMap( ret , MapKeys.CHILD_COMP , compName , -1 );
 
 			HashSet < String > links;
-			if ( ( links = ( HashSet < String > ) MapUtils.getMapSingleEntry( vars , MapKeys.LINKS ) ) != null ) {
+			if ( ( links = ( HashSet < String > ) MapUtils.getSingleEntry( vars , MapKeys.LINKS ) ) != null ) {
 				for ( String link : links ) {
 					template.setAttribute( "linksList" , link );
 				}
@@ -3762,12 +3138,12 @@ public class TemplateMaker {
 				template.setAttribute( MapKeys.CHILD_COMP , childComp );
 			}
 
-			ret = exportPorts( vars , templatePortsMap , template , ret , false );
+			exportPorts( vars , templatePortsMap , template , ret , false );
 
-			ret = MapUtils.addToBIPCode( "\n" + applyRDV( compNum , true ) , ret );
-			ret = MapUtils.addToBIPCode( "\n" + applyANY( compNum , true ) , ret );
+			MapUtils.addToBIPCode( ret , "\n" + applyRDV( compNum , true ) );
+			MapUtils.addToBIPCode( ret , "\n" + applyANY( compNum , true ) );
 
-			ret = MapUtils.addToBIPCode( "\n\n" + template.toString( ) , ret );
+			MapUtils.addToBIPCode( ret , "\n\n" + template.toString( ) );
 		} else {
 			HashMap < String , ArrayList > newRet = new HashMap < String , ArrayList >( );
 
@@ -3794,8 +3170,8 @@ public class TemplateMaker {
 
 				// produce branch code
 				HashMap < String , ArrayList > retBranch = applyFLOWN_BRANCH( elem , stack );
-				Object branchCode = MapUtils.getMapSingleEntry( retBranch , MapKeys.BIP_CODE );
-				newRet = MapUtils.addToBIPCode( "\n\n" + ( String ) branchCode , newRet );
+				Object branchCode = MapUtils.getSingleEntry( retBranch , MapKeys.BIP_CODE );
+				newRet = MapUtils.addToBIPCode( newRet , "\n\n" + ( String ) branchCode );
 				retBranch.remove( MapKeys.BIP_CODE );
 				retBranch.remove( MapKeys.CPP_CODE );
 
@@ -3813,10 +3189,10 @@ public class TemplateMaker {
 
 			// procuce wrapper's code
 			template = AttrFiller.getTemplate( templateFile , "FLOWNW" );
-			compName = "flownw_" + ( tmplInst.getSize( ) + 1 );
-			tmplInst.addInstance( compName );
+			compName = "flownw_" + ( templateList.getSize( ) + 1 );
+			templateList.addInstance( compName );
 			MapUtils.addToMap( newRet , MapKeys.CHILD_COMP , compName , -1 );
-			template.setAttribute( "id" , tmplInst.getSize( ) );
+			template.setAttribute( "id" , templateList.getSize( ) );
 			template.setAttribute( "count" , String.valueOf( vars.get( MapKeys.CHILD_COMP ).size( ) ) );
 			for ( Object childComp : flowNVars.get( MapKeys.CHILD_COMP ) ) {
 				template.setAttribute( MapKeys.CHILD_COMP , ( ( ArrayList ) childComp ).get( 0 ) );
@@ -3825,10 +3201,10 @@ public class TemplateMaker {
 			templatePortsMap = new HashMap( );
 			newRet = exportPorts( vars , templatePortsMap , template , newRet , false );
 
-			newRet = MapUtils.addToBIPCode( "\n" + applyRDV( compNum , true ) , newRet );
-			newRet = MapUtils.addToBIPCode( "\n" + applyANY( compNum , true ) , newRet );
+			newRet = MapUtils.addToBIPCode( newRet , "\n" + applyRDV( compNum , true ) );
+			newRet = MapUtils.addToBIPCode( newRet , "\n" + applyANY( compNum , true ) );
 
-			newRet = MapUtils.addToBIPCode( "\n\n" + template.toString( ) , newRet );
+			newRet = MapUtils.addToBIPCode( newRet , "\n\n" + template.toString( ) );
 			return newRet;
 		}
 
@@ -3844,7 +3220,7 @@ public class TemplateMaker {
 			HashMap < String , ArrayList > ret ) throws Exception {
 
 		HashMap < String , ArrayList > vars = stack.peek( );
-		ret = MapUtils.addToBIPCode( '\n' + applyConnTemplate( "COMPCTRL" ) , ret );
+		MapUtils.addToBIPCode( ret , '\n' + applyConnTemplate( "COMPCTRL" ) );
 
 		MapUtils.addToMap( ret , MapKeys.SCOPE_ROLES , "MA" , -1 );
 		ArrayList childComp = new ArrayList( vars.get( MapKeys.CHILD_COMP ).size( ) );
@@ -3861,9 +3237,9 @@ public class TemplateMaker {
 			}
 		}
 
-		ret = MapUtils.addToBIPCode( applyRDV( childComp.size( ) , true ) , ret );
-		ret = MapUtils.addToBIPCode( applyRDV( 2 , false ) , ret );
-		ret = MapUtils.addToBIPCode( applyANY( childComp.size( ) , true ) , ret );
+		MapUtils.addToBIPCode( ret , applyRDV( childComp.size( ) , true ) );
+		MapUtils.addToBIPCode( ret , applyRDV( 2 , false ) );
+		MapUtils.addToBIPCode( ret , applyANY( childComp.size( ) , true ) );
 
 		String s = "\n";
 		s += applyANY( Integer.valueOf( childComp.size( ) ) , true );
@@ -3878,42 +3254,40 @@ public class TemplateMaker {
 			AttrFiller.addToTemplate( startdone , template , "startdone" );
 		}
 		HashMap templatePortsMap = new HashMap( );
-		ret = exportPorts( vars , templatePortsMap , template , ret , true );
+		exportPorts( vars , templatePortsMap , template , ret , true );
 
 		s += template.toString( );
-		ret = MapUtils.addToBIPCode( s , ret );
+		MapUtils.addToBIPCode( ret , s );
 
 		return ret;
 	}
 
 
-	private HashMap < String , ArrayList > manageFaultsList( HashMap < String , ArrayList > vars , Map templatePortsMap , StringTemplate template ,
-			HashMap < String , ArrayList > ret , boolean sequential ) {
+	public static HashMap < String , ArrayList > manageFaultsList( HashMap < String , ArrayList > vars , Map templatePortsMap ,
+			StringTemplate template , HashMap < String , ArrayList > ret ) {
 
 		/* used only in structured activities */
 		/* if there are no faults raised by children */
-		ArrayList components;
-		if ( ( components = vars.get( MapKeys.FAULTS_LIST ) ) != null ) {
+		ArrayList < ArrayList > components = vars.get( MapKeys.FAULTS_LIST );
+		if ( components == null ) {
+			return ret;
+		}
 
-			/* create an ArrayList with the components that throw some fault */
-			// add components with non-empty faultsLists
-			boolean throwsFault = false;
-			for ( int i = 0 ; i < components.size( ) ; i++ ) {
-				if ( components.get( i ) != null && ( ( ArrayList ) components.get( i ) ).size( ) > 0 ) {
-					throwsFault = true;
-					if ( template.getName( ).equals( "FHW" ) ) {
-						template.setAttribute( "expFaultsList" , i + 1 );
-					} else if ( !template.getName( ).equals( "SCOPE" ) && !template.getName( ).equals( "PROCESS" ) ) {
-						MapUtils.addToMap( templatePortsMap , "expFaultsList" , String.valueOf( i + 1 ) , -1 );
-					}
+		/* create an ArrayList with the components that throw some fault */
+		// add components with non-empty faultsLists
+		boolean throwsFault = false;
+		for ( int i = 0 ; i < components.size( ) ; i++ ) {
+			if ( components.get( i ) != null && components.get( i ).size( ) > 0 ) {
+				throwsFault = true;
+				if ( template.getName( ).equals( "FHW" ) ) {
+					template.setAttribute( "expFaultsList" , i + 1 );
+				} else if ( !template.getName( ).equals( "SCOPE" ) && !template.getName( ).equals( "PROCESS" ) ) {
+					MapUtils.addToMap( templatePortsMap , "expFaultsList" , String.valueOf( i + 1 ) , -1 );
 				}
 			}
-			if ( throwsFault ) {
-				if ( !ret.containsKey( MapKeys.FAULTS_LIST ) ) {
-					ret.put( MapKeys.FAULTS_LIST , new ArrayList( 1 ) );
-				}
-				ret.get( MapKeys.FAULTS_LIST ).add( "default" );
-			}
+		}
+		if ( throwsFault ) {
+			MapUtils.addToMapEntry( ret , MapKeys.FAULTS_LIST , "default" );
 		}
 
 		return ret;
@@ -3927,21 +3301,20 @@ public class TemplateMaker {
 		// csSet, meSet with the ima's different correlSets and MsgExchanges
 
 		ArrayList < Object > components = null;
-		ret = manageFaultsList( vars , templatePortsMap , template , ret , sequential );
+		ret = manageFaultsList( vars , templatePortsMap , template , ret );
 
 		// if there are compensate ports (i.e. there is a compensate activity in
 		// the current activity)
 		if ( ( components = ( ArrayList < Object > ) vars.get( MapKeys.COMPEN_PORTS ) ) != null ) {
 			if ( template.getName( ).equals( "FHW" ) ) {
-				ret = MapUtils.addToBIPCode( applyConnTemplate( "ASSC1" ) , ret );
+				MapUtils.addToBIPCode( ret , applyConnTemplate( "ASSC1" ) );
 			}
 			// if (!template.getName().equals("SCOPE") &&
 			// !template.getName().equals("PROCESS")) {
 
 			HashSet < String > compensateComponents = new HashSet < String >( );
-			ret = MapUtils.addToBIPCode( applyConnTemplate( "RDIFD2" ) , ret );
-			ret = MapUtils.addToBIPCode( applyAAS( new int [ ] { 1 } , true ) , ret );
-			ret.put( MapKeys.COMPEN_PORTS , new ArrayList( ) );
+			MapUtils.addToBIPCode( ret , applyConnTemplate( "RDIFD2" ) );
+			MapUtils.addToBIPCode( ret , applyAAS( new int [ ] { 1 } , true ) );
 			ArrayList < Object > componentsPorts = null;
 			for ( int i = 0 ; i < components.size( ) ; i++ ) {
 				if ( ( componentsPorts = ( ArrayList < Object > ) components.get( i ) ) != null ) {
@@ -3949,10 +3322,10 @@ public class TemplateMaker {
 					for ( int j = 0 ; j < componentsPorts.size( ) ; j++ ) {
 						// export all compPorts
 						CompenPort compPort = ( CompenPort ) componentsPorts.get( j );
-						ret.get( MapKeys.COMPEN_PORTS ).add( compPort );
+						MapUtils.addToMapEntry( ret , MapKeys.COMPEN_PORTS , compPort );
 						compPort.setCompIndex( String.valueOf( i + 1 ) );
 						ArrayList < String > toTemplate = compPort.toArray4Template( "expComp" );
-						ret = MapUtils.addToBIPCode( applyCPEB( 1 , 0 , true ) , ret );
+						MapUtils.addToBIPCode( ret , applyCPEB( 1 , 0 , true ) );
 						if ( compPort.getTargetScope( ).equals( "" ) ) {
 							MapUtils.addToMap( templatePortsMap , "expComp" , toTemplate , -1 );
 						} else {
@@ -3971,12 +3344,11 @@ public class TemplateMaker {
 			if ( !template.getName( ).equals( "SCOPE" ) && !template.getName( ).equals( "PROCESS" ) ) {
 				ArrayList < Integer > reversibleComponentsIndices = new ArrayList < Integer >( components.size( ) );
 
-				ret = MapUtils.addToBIPCode( applyConnTemplate( "RDD1" ) , ret );
-				ret = MapUtils.addToBIPCode( applyAAS( new int [ ] { 1 } , true ) , ret );
-				ret = MapUtils.addToBIPCode( applyAAS( new int [ ] { 2 } , true ) , ret ); // needed
+				MapUtils.addToBIPCode( ret , applyConnTemplate( "RDD1" ) );
+				MapUtils.addToBIPCode( ret , applyAAS( new int [ ] { 1 } , true ) );
+				MapUtils.addToBIPCode( ret , applyAAS( new int [ ] { 2 } , true ) ); // needed
 
 				ArrayList < Object > componentsPorts = null;
-				ret.put( MapKeys.RVRS_PORTS , new ArrayList( ) );
 
 				for ( int i = 0 ; i < components.size( ) ; i++ ) {
 					if ( ( componentsPorts = ( ArrayList < Object > ) components.get( i ) ) == null || componentsPorts.size( ) == 0 ) {
@@ -3992,20 +3364,20 @@ public class TemplateMaker {
 						ArrayList < String > toTemplate = rvrsPort.toArray4Template( "expRvrsScope" );
 
 						MapUtils.addToMap( templatePortsMap , "expRvrsScope" , toTemplate , -1 );
-						ret.get( MapKeys.RVRS_PORTS ).add( rvrsPort );
+						MapUtils.addToMapEntry( ret , MapKeys.RVRS_PORTS , rvrsPort );
 						break;
 					}
 				}
 				if ( sequential ) {
-					ret = MapUtils.addToBIPCode( applyASS( 0 , 1 ) , ret ); // changed
+					MapUtils.addToBIPCode( ret , applyASS( 0 , 1 ) ); // changed
 					// that
 					ArrayList < String > startdone;
 					// if ( reversibleComponentsIndices.size( ) > 0 ) {
-					ret = MapUtils.addToBIPCode( applyConnTemplate( "RVRSCSD" ) , ret );
-					ret = MapUtils.addToBIPCode( applyConnTemplate( "RVRSSD" ) , ret );
-					ret = MapUtils.addToBIPCode( applyConnTemplate( "RVRSDSD" ) , ret );
-					ret = MapUtils.addToBIPCode( applyTRMRVSD( 2 ) , ret );
-					ret = MapUtils.addToBIPCode( applyTRMRVSD( reversibleComponentsIndices.size( ) ) , ret );
+					MapUtils.addToBIPCode( ret , applyConnTemplate( "RVRSCSD" ) );
+					MapUtils.addToBIPCode( ret , applyConnTemplate( "RVRSSD" ) );
+					MapUtils.addToBIPCode( ret , applyConnTemplate( "RVRSDSD" ) );
+					MapUtils.addToBIPCode( ret , applyTRMRVSD( 2 ) );
+					MapUtils.addToBIPCode( ret , applyTRMRVSD( reversibleComponentsIndices.size( ) ) );
 					// }
 					if ( reversibleComponentsIndices.size( ) > 1 ) {
 						for ( int i = 0 ; i < reversibleComponentsIndices.size( ) - 1 ; i++ ) {
@@ -4014,21 +3386,21 @@ public class TemplateMaker {
 							startdone.add( String.valueOf( String.valueOf( ( Integer ) reversibleComponentsIndices.get( i ) + 1 ) ) );
 							MapUtils.addToMap( templatePortsMap , "rvrsStartdone" , startdone , -1 );
 						}
-						ret = MapUtils.addToBIPCode( applyRDV( 2 , false ) , ret );
-						ret = MapUtils.addToBIPCode( applyConnTemplate( "RVSIND" ) , ret );
-						ret = MapUtils.addToBIPCode( applyConnTemplate( "TRMRVSIND" ) , ret );
-						ret = MapUtils.addToBIPCode( applyConnTemplate( "RVSIN" ) , ret );
+						MapUtils.addToBIPCode( ret , applyRDV( 2 , false ) );
+						MapUtils.addToBIPCode( ret , applyConnTemplate( "RVSIND" ) );
+						MapUtils.addToBIPCode( ret , applyConnTemplate( "TRMRVSIND" ) );
+						MapUtils.addToBIPCode( ret , applyConnTemplate( "RVSIN" ) );
 					}
 				} else {
-					ret = MapUtils.addToBIPCode( applyTRMRVSD( reversibleComponentsIndices.size( ) ) , ret );
-					ret = MapUtils.addToBIPCode( applyPRRVRSX( reversibleComponentsIndices.size( ) ) , ret );
-					ret = MapUtils.addToBIPCode( applyPRENDRVRSX( reversibleComponentsIndices.size( ) ) , ret );
+					MapUtils.addToBIPCode( ret , applyTRMRVSD( reversibleComponentsIndices.size( ) ) );
+					MapUtils.addToBIPCode( ret , applyPRRVRSX( reversibleComponentsIndices.size( ) ) );
+					MapUtils.addToBIPCode( ret , applyPRENDRVRSX( reversibleComponentsIndices.size( ) ) );
 				}
 				if ( reversibleComponentsIndices.size( ) > 0 ) {
 
-					ret = MapUtils.addToBIPCode( applyCMP( reversibleComponentsIndices.size( ) ) , ret );
-					ret = MapUtils.addToBIPCode( applyTRMCMP( reversibleComponentsIndices.size( ) ) , ret );
-					ret = MapUtils.addToBIPCode( applyENDCMP( reversibleComponentsIndices.size( ) ) , ret );
+					MapUtils.addToBIPCode( ret , applyCMP( reversibleComponentsIndices.size( ) ) );
+					MapUtils.addToBIPCode( ret , applyTRMCMP( reversibleComponentsIndices.size( ) ) );
+					MapUtils.addToBIPCode( ret , applyENDCMP( reversibleComponentsIndices.size( ) ) );
 					MapUtils.addToMap( templatePortsMap , "expRvrs" , String.valueOf( reversibleComponentsIndices.size( ) ) , -1 );
 
 					for ( int i = 0 ; i < reversibleComponentsIndices.size( ) ; i++ ) {
@@ -4039,7 +3411,6 @@ public class TemplateMaker {
 		}
 
 		if ( ( components = ( ArrayList < Object > ) vars.get( MapKeys.IMA_PORTS ) ) != null ) {
-			ret.put( MapKeys.IMA_PORTS , new ArrayList < Object >( vars.get( MapKeys.IMA_PORTS ).size( ) ) );
 
 			ArrayList < Object > componentsPorts = null;
 			for ( int i = 0 ; i < components.size( ) ; i++ ) {
@@ -4066,7 +3437,7 @@ public class TemplateMaker {
 							MapUtils.addToMap( templatePortsMap , "expDisIma" , toTemplate , -1 );
 						}
 						if ( imaPort.isExported( "expIma" ) || imaPort.isExported( "disIma" ) ) {
-							ret.get( MapKeys.IMA_PORTS ).add( imaPort );
+							MapUtils.addToMapEntry( ret , MapKeys.IMA_PORTS , imaPort );
 						}
 					}
 				}
@@ -4075,9 +3446,8 @@ public class TemplateMaker {
 			/* join conflImas */
 			HashMap < String , ArrayList > conflIma;
 			if ( ( conflIma = uniteConflImaPorts( vars ) ) != null ) {
-				ret.put( MapKeys.CONFL_IMA_PORTS , new ArrayList( 1 ) );
 				HashMap < String , ArrayList < ArrayList >> retConflIma = new HashMap < String , ArrayList < ArrayList >>( );
-				ret.get( MapKeys.CONFL_IMA_PORTS ).add( retConflIma );
+				MapUtils.addToMapEntry( ret , MapKeys.CONFL_IMA_PORTS , retConflIma );
 
 				// for each receive with the same partnerLink and operation
 				// (pl_op) , get these conflicts
@@ -4095,10 +3465,10 @@ public class TemplateMaker {
 
 					ConflIMAPort conflImaPort = new ConflIMAPort( null , null , pl_op , String.valueOf( imasConflicts.size( ) ) , complIndices );
 					ArrayList < String > toTemplate = conflImaPort.toArray4Template( "expConflIma" );
-					ret = MapUtils.addToBIPCode( applyCHKRC2XD( imasConflicts.size( ) ) , ret );
+					MapUtils.addToBIPCode( ret , applyCHKRC2XD( imasConflicts.size( ) ) );
 
 					if ( imasConflicts.size( ) > 0 ) {
-						ret = MapUtils.addToBIPCode( applyCHKRC2X( imasConflicts.size( ) ) , ret );
+						MapUtils.addToBIPCode( ret , applyCHKRC2X( imasConflicts.size( ) ) );
 					}
 					MapUtils.addToMap( templatePortsMap , "expConflIma" , toTemplate , -1 );
 
@@ -4109,9 +3479,8 @@ public class TemplateMaker {
 		}
 
 		if ( ( components = ( ArrayList < Object > ) vars.get( MapKeys.WRITE_LINK_PORTS ) ) != null ) {
-			ret.put( MapKeys.WRITE_LINK_PORTS , new ArrayList < Object >( ) );
 
-			HashSet < String > links = ( HashSet < String > ) MapUtils.getMapSingleEntry( vars , MapKeys.LINKS );
+			HashSet < String > links = ( HashSet < String > ) MapUtils.getSingleEntry( vars , MapKeys.LINKS );
 
 			for ( int i = 0 ; i < components.size( ) ; i++ ) {
 				ArrayList < Object > componentsWrtLnk = ( ArrayList < Object > ) components.get( i );
@@ -4123,25 +3492,24 @@ public class TemplateMaker {
 
 					wrtLnk.setCompIndex( String.valueOf( i + 1 ) );
 
-					if ( links != null && links.contains( wrtLnk.getVarParts( ).get( 0 ) ) ) {
+					if ( links != null && links.contains( wrtLnk.parts( ).get( 0 ) ) ) {
 
 						ArrayList < String > toTemplate = wrtLnk.toArray4Template( "wrtLnkPorts" );
 						MapUtils.addToMap( templatePortsMap , "wrtLnkPorts" , toTemplate , -1 );
-						ret = MapUtils.addToBIPCode( applyCP2EB( 1 , 0 ) , ret );
+						MapUtils.addToBIPCode( ret , applyCP2EB( 1 , 0 ) );
 					} else {
 						ArrayList < String > toTemplate = wrtLnk.toArray4Template( "expWrtLnkPorts" );
 						MapUtils.addToMap( templatePortsMap , "expWrtLnkPorts" , toTemplate , -1 );
-						ret = MapUtils.addToBIPCode( applyAAS( new int [ ] { 1 } , true ) , ret );
-						ret.get( MapKeys.WRITE_LINK_PORTS ).add( wrtLnk );
+						MapUtils.addToBIPCode( ret , applyAAS( new int [ ] { 1 } , true ) );
+						MapUtils.addToMapEntry( ret , MapKeys.WRITE_LINK_PORTS , wrtLnk );
 					}
 				}
 			}
 		}
 
 		if ( ( components = ( ArrayList < Object > ) vars.get( MapKeys.READ_LINK_PORTS ) ) != null ) {
-			ret.put( MapKeys.READ_LINK_PORTS , new ArrayList < Object >( ) );
 
-			HashSet < String > links = ( HashSet < String > ) MapUtils.getMapSingleEntry( vars , MapKeys.LINKS );
+			HashSet < String > links = ( HashSet < String > ) MapUtils.getSingleEntry( vars , MapKeys.LINKS );
 
 			for ( int i = 0 ; i < components.size( ) ; i++ ) {
 				ArrayList < Object > componentsPorts = ( ArrayList < Object > ) components.get( i );
@@ -4157,30 +3525,30 @@ public class TemplateMaker {
 						boolean existLinks = false;
 						if ( links != null ) {
 
-							for ( String link : port.getVarParts( ) ) {
+							for ( String link : port.parts( ) ) {
 								if ( links.contains( link ) ) {
-									port2exp.getVarParts( ).remove( link );
+									port2exp.parts( ).remove( link );
 									existLinks = true;
 								}
 							}
 						}
 						// at least one link is in this flow, then we create
 						if ( existLinks ) {
-							int hereNums = port.getVarParts( ).size( ) - Integer.valueOf( port2exp.getVarParts( ).size( ) );
+							int hereNums = port.parts( ).size( ) - Integer.valueOf( port2exp.parts( ).size( ) );
 							port.setHereNums( hereNums );
 
 							ArrayList < String > toTemplate = port.toArray4Template( "rdLnkPorts" );
 							AttrFiller.addToTemplate( toTemplate , template , "rdLnkPorts" );
 
-							ret = MapUtils.addToBIPCode( applyRDLNK( port.getVarParts( ).size( ) , hereNums ) , ret );
-							if ( port2exp.getVarParts( ).size( ) > 0 ) {
-								ret.get( MapKeys.READ_LINK_PORTS ).add( port2exp );
+							MapUtils.addToBIPCode( ret , applyRDLNK( port.parts( ).size( ) , hereNums ) );
+							if ( port2exp.parts( ).size( ) > 0 ) {
+								MapUtils.addToMapEntry( ret , MapKeys.READ_LINK_PORTS , port2exp );
 							}
 						} else {
 							ArrayList < String > toTemplate = port.toArray4Template( "expRdLnkPorts" );
 							MapUtils.addToMap( templatePortsMap , "expRdLnkPorts" , toTemplate , -1 );
-							ret = MapUtils.addToBIPCode( applyRDVAR( port.getVarParts( ).size( ) , true ) , ret );
-							ret.get( MapKeys.READ_LINK_PORTS ).add( port );
+							MapUtils.addToBIPCode( ret , applyRDVAR( port.parts( ).size( ) , true ) );
+							MapUtils.addToMapEntry( ret , MapKeys.READ_LINK_PORTS , port );
 						}
 					}
 				}
@@ -4188,7 +3556,6 @@ public class TemplateMaker {
 		}
 
 		if ( ( components = ( ArrayList < Object > ) vars.get( MapKeys.OMA_PORTS ) ) != null ) {
-			ret.put( MapKeys.OMA_PORTS , new ArrayList( ) );
 
 			ArrayList < Object > componentsPorts = null;
 			for ( int i = 0 ; i < components.size( ) ; i++ ) {
@@ -4205,7 +3572,7 @@ public class TemplateMaker {
 						 * // toTemplate.add(3, (String) oma.get(2));// meFlag
 						 */
 						MapUtils.addToMap( templatePortsMap , "expOma" , toTemplate , -1 );
-						ret.get( MapKeys.OMA_PORTS ).add( oma );
+						MapUtils.addToMapEntry( ret , MapKeys.OMA_PORTS , oma );
 
 					}
 				}
@@ -4213,10 +3580,9 @@ public class TemplateMaker {
 		}
 
 		if ( ( components = ( ArrayList < Object > ) vars.get( MapKeys.INV_PORTS ) ) != null ) {
-			ret.put( MapKeys.INV_PORTS , new ArrayList < Object >( ) );
 
 			ArrayList < Object > componentsPorts = null;
-			ret = MapUtils.addToBIPCode( applyCHKMR( true ) , ret );
+			MapUtils.addToBIPCode( ret , applyCHKMR( true ) );
 			for ( int i = 0 ; i < components.size( ) ; i++ ) {
 				if ( ( componentsPorts = ( ArrayList < Object > ) components.get( i ) ) != null ) {
 					for ( int j = 0 ; j < componentsPorts.size( ) ; j++ ) {
@@ -4227,15 +3593,13 @@ public class TemplateMaker {
 						inv.setCompIndex( String.valueOf( i + 1 ) );
 						ArrayList < String > toTemplate = inv.toArray4Template( "expInv" );
 						MapUtils.addToMap( templatePortsMap , "expInv" , toTemplate , -1 );
-						ret.get( MapKeys.INV_PORTS ).add( inv );
+						MapUtils.addToMapEntry( ret , MapKeys.INV_PORTS , inv );
 					}
 				}
 			}
 		}
 
 		if ( ( components = ( ArrayList < Object > ) vars.get( MapKeys.INV_IMA_PORTS ) ) != null ) {
-
-			ret.put( MapKeys.INV_IMA_PORTS , new ArrayList < Object >( ) );
 
 			ArrayList < Object > componentsPorts = null;
 			for ( int i = 0 ; i < components.size( ) ; i++ ) {
@@ -4246,7 +3610,7 @@ public class TemplateMaker {
 						// if the partnerLink in the invIma is declared in a
 						// higher
 						// scope, then inv is further exported
-						ret.get( MapKeys.INV_IMA_PORTS ).add( inv );
+						MapUtils.addToMapEntry( ret , MapKeys.INV_IMA_PORTS , inv );
 						inv.setCompIndex( String.valueOf( i + 1 ) );
 						ArrayList < String > toTemplate = inv.toArray4Template( "expInvIma" );
 						MapUtils.addToMap( templatePortsMap , "expInvIma" , toTemplate , -1 );
@@ -4276,7 +3640,6 @@ public class TemplateMaker {
 		// manageReadWritePorts: END
 
 		if ( ( components = ( ArrayList < Object > ) vars.get( MapKeys.RCV_MESSAGE_PORTS ) ) != null ) {
-			ret.put( MapKeys.RCV_MESSAGE_PORTS , new ArrayList( ) );
 			ArrayList < Object > componentsPorts = null;
 			for ( int i = 0 ; i < components.size( ) ; i++ ) {
 				if ( ( componentsPorts = ( ArrayList < Object > ) components.get( i ) ) != null ) {
@@ -4285,10 +3648,10 @@ public class TemplateMaker {
 						port.setCompIndex( String.valueOf( i + 1 ) );
 						ArrayList < String > toTemplate = port.toArray4Template( "expRcvMsgPorts" );
 
-						ret = MapUtils.addToBIPCode( applyCPEB( 1 , 0 , true ) , ret );
+						MapUtils.addToBIPCode( ret , applyCPEB( 1 , 0 , true ) );
 						MapUtils.addToMap( templatePortsMap , "expRcvMsgPorts" , toTemplate , -1 );
 
-						ret.get( MapKeys.RCV_MESSAGE_PORTS ).add( port );
+						MapUtils.addToMapEntry( ret , MapKeys.RCV_MESSAGE_PORTS , port );
 					}
 				}
 			}
@@ -4304,10 +3667,10 @@ public class TemplateMaker {
 						port.setCompIndex( String.valueOf( i + 1 ) );
 						ArrayList < String > toTemplate = port.toArray4Template( "expSndMsgPorts" );
 
-						ret = MapUtils.addToBIPCode( applyAAS( new int [ ] { 1 } , true ) , ret );
+						MapUtils.addToBIPCode( ret , applyAAS( new int [ ] { 1 } , true ) );
 						MapUtils.addToMap( templatePortsMap , "expSndMsgPorts" , toTemplate , -1 );
 
-						ret.get( MapKeys.SND_MESSAGE_PORTS ).add( port );
+						MapUtils.addToMapEntry( ret , MapKeys.SND_MESSAGE_PORTS , port );
 					}
 				}
 			}
@@ -4346,7 +3709,6 @@ public class TemplateMaker {
 		}
 
 		if ( ( components = ( ArrayList < Object > ) vars.get( MapKeys.ON_IMA_PORTS ) ) != null ) {
-			ret.put( MapKeys.ON_IMA_PORTS , new ArrayList( 1 ) );
 			ArrayList < String > toTemplate = new ArrayList( components.size( ) + 1 );
 
 			for ( int i = 0 ; i < components.size( ) ; i++ ) {
@@ -4357,13 +3719,11 @@ public class TemplateMaker {
 				}
 			}
 			if ( toTemplate.size( ) > 0 ) {
-				ret = MapUtils.addToBIPCode( applyANY( toTemplate.size( ) , true ) , ret );
-				ret = MapUtils.addToBIPCode( applyRDV( toTemplate.size( ) , true ) , ret );
+				MapUtils.addToBIPCode( ret , applyANY( toTemplate.size( ) , true ) );
+				MapUtils.addToBIPCode( ret , applyRDV( toTemplate.size( ) , true ) );
 				toTemplate.add( 0 , String.valueOf( toTemplate.size( ) ) );
 				MapUtils.addToMap( templatePortsMap , "expOnIMAs" , toTemplate , -1 );
-				ArrayList al = new ArrayList( 1 );
-				al.add( "1" ); // symbolic value
-				ret.get( MapKeys.ON_IMA_PORTS ).add( al );
+				MapUtils.addToMapEntry( ret , MapKeys.ON_IMA_PORTS , Arrays.asList( new String [ ] { "1" } ) );
 			}
 
 		}
@@ -4373,7 +3733,7 @@ public class TemplateMaker {
 	}
 
 
-	private HashMap < String , ArrayList > transformMapEntryPorts( HashMap < String , ArrayList > vars , HashMap templatePortsMap ,
+	public static HashMap < String , ArrayList > transformMapEntryPorts( HashMap < String , ArrayList > vars , HashMap templatePortsMap ,
 			StringTemplate template , HashMap < String , ArrayList > ret , ArrayList < String > mapEntries , boolean sequential ) throws Exception {
 
 		ArrayList components;
@@ -4393,7 +3753,7 @@ public class TemplateMaker {
 						Port port = ( Port ) componentPorts.get( i );
 						port.setCompIndex( MapUtils.getComponentIndex( vars , template , p ) );
 
-						ret = transformPort( vars , templatePortsMap , template , ret , sequential , mapEntry , port );
+						ret = transformPort( vars , templatePortsMap , template , ret , mapEntry , port );
 					}
 				}
 			}
@@ -4404,46 +3764,47 @@ public class TemplateMaker {
 	}
 
 
-	private HashMap < String , ArrayList > initializePortsTransform( HashMap < String , ArrayList > vars , ArrayList < String > mapEntries ) {
+	public static HashMap < String , ArrayList > initializePortsTransform( HashMap < String , ArrayList > vars , ArrayList < String > mapEntries ) {
 
-		if ( mapEntries.contains( MapKeys.READ_PORTS ) || mapEntries.contains( MapKeys.WRITE_PORTS ) ) {
-			// varHash exists if this function has been called before, even if
-			// it's empty
-			if ( !vars.containsKey( MapKeys.VARIABLES_HASH ) ) {
-				// variables_hash will hold all assignable scope data.
-				HashSet < String > variables_hash = new HashSet < String >( );
-
-				HashMap < String , ArrayList < String >> variables;
-				if ( ( variables = ( HashMap < String , ArrayList < String >> ) MapUtils.getMapSingleEntry( vars , MapKeys.VARIABLES ) ) != null ) {
-					for ( String var : variables.keySet( ) ) {
-						if ( variables.get( var ).size( ) == 0 ) {
-							variables_hash.add( var );
-						} else {
-							variables_hash.addAll( variables.get( var ) );
-						}
-					}
-				}
-
-				if ( ( variables = ( HashMap < String , ArrayList < String >> ) MapUtils.getMapSingleEntry( vars , MapKeys.PARTNER_LINKS ) ) != null ) {
-					for ( String var : variables.keySet( ) ) {
-						variables_hash.add( var + "_pRole" );
-					}
-				}
-				// add to varHash the variable's parts if any (they are
-				// named as var_part)
-
-				vars.put( MapKeys.VARIABLES_HASH , new ArrayList( 1 ) );
-				( ( ArrayList < Object > ) vars.get( MapKeys.VARIABLES_HASH ) ).add( variables_hash );
-				vars.put( MapKeys.DATA_LIST , new ArrayList( 1 ) );
-				( ( ArrayList < Object > ) vars.get( MapKeys.DATA_LIST ) ).add( new HashSet < String >( ) );
-			}
+		if ( ! ( mapEntries.contains( MapKeys.READ_PORTS ) & mapEntries.contains( MapKeys.WRITE_PORTS ) ) ) {
+			return vars;
+		}
+		// varHash exists if this function has been called before, even if
+		// it's empty
+		if ( vars.containsKey( MapKeys.VARIABLES_HASH ) ) {
+			return vars;
 
 		}
+		// variables_hash will hold all assignable scope data.
+		HashSet < String > variables_hash = new HashSet < String >( );
+
+		HashMap < String , ArrayList < String >> variables = ( HashMap < String , ArrayList < String >> ) MapUtils.getSingleEntry( vars ,
+				MapKeys.VARIABLES );
+		if ( variables != null ) {
+			for ( String var : variables.keySet( ) ) {
+				if ( variables.get( var ).size( ) == 0 ) {
+					variables_hash.add( var );
+				} else {
+					variables_hash.addAll( variables.get( var ) );
+				}
+			}
+		}
+		variables = ( HashMap < String , ArrayList < String >> ) MapUtils.getSingleEntry( vars , MapKeys.PARTNER_LINKS );
+		if ( variables != null ) {
+			for ( String var : variables.keySet( ) ) {
+				variables_hash.add( var + "_pRole" );
+			}
+		}
+		// add to varHash the variable's parts if any (they are
+		// named as var_part)
+		MapUtils.addToMapEntry( vars , MapKeys.VARIABLES_HASH , variables_hash );
+		MapUtils.addToMapEntry( vars , MapKeys.DATA_LIST , new HashSet < String >( ) );
+
 		return vars;
 	}
 
 
-	private HashMap < String , ArrayList > finalizePortsTransform( HashMap < String , ArrayList > vars ) {
+	public static HashMap < String , ArrayList > finalizePortsTransform( HashMap < String , ArrayList > vars ) {
 
 		vars.remove( MapKeys.VARIABLES_HASH );
 		vars.remove( MapKeys.DATA_LIST );
@@ -4451,8 +3812,8 @@ public class TemplateMaker {
 	}
 
 
-	private HashMap < String , ArrayList > transformPort( HashMap < String , ArrayList > vars , HashMap templatePortsMap , StringTemplate template ,
-			HashMap < String , ArrayList > ret , boolean sequential , String portType , Port port ) throws Exception {
+	public static HashMap < String , ArrayList > transformPort( HashMap < String , ArrayList > vars , HashMap templatePortsMap ,
+			StringTemplate template , HashMap < String , ArrayList > ret , String portType , Port port ) throws Exception {
 
 		if ( portType.equals( MapKeys.READ_PORTS ) )
 			return transformRWPort( vars , templatePortsMap , template , ret , port , MapKeys.READ_PORTS );
@@ -4463,20 +3824,21 @@ public class TemplateMaker {
 	}
 
 
-	private HashMap < String , ArrayList > transformRWPort( HashMap < String , ArrayList > vars , HashMap templatePortsMap , StringTemplate template ,
-			HashMap < String , ArrayList > ret , Port port , String mapKey ) throws Exception {
+	public static HashMap < String , ArrayList > transformRWPort( HashMap < String , ArrayList > vars , HashMap templatePortsMap ,
+			StringTemplate template , HashMap < String , ArrayList > ret , Port port , String mapKey ) throws Exception {
 
 		RwPort writePort = ( RwPort ) port; // the port in Map
 		// clone of the writePort to manipulate for template
 		// RwPort forTemplate = writePort.clone( );
 		// get parts declared in scope
-		HashSet < String > partsInScopeSet = ( HashSet < String > ) MapUtils.getMapSingleEntry( vars , MapKeys.VARIABLES_HASH );
-		HashSet < String > dataList = ( HashSet < String > ) MapUtils.getMapSingleEntry( vars , MapKeys.DATA_LIST );
+		HashSet < String > partsInScopeSet = ( HashSet < String > ) MapUtils.getSingleEntry( vars , MapKeys.VARIABLES_HASH );
+		HashSet < String > dataList = ( HashSet < String > ) MapUtils.getSingleEntry( vars , MapKeys.DATA_LIST );
 
 		int hereNum = 0; // num of port variable_parts defined in scope
+
 		// copy ports in assign are ordered: leftmost ports with parts declared
 		// higher
-		ArrayList < String > partsInPort = new ArrayList < String >( writePort.getVarParts( ) );
+		ArrayList < String > partsInPort = new ArrayList < String >( writePort.parts( ) );
 
 		for ( String part : partsInPort ) {
 			if ( partsInScopeSet != null && partsInScopeSet.contains( part ) ) {
@@ -4498,24 +3860,24 @@ public class TemplateMaker {
 
 			// forTemplate.setHereNums( String.valueOf( hereNum ) );
 			// prepare writePort for template
-			int varsNum = writePort.getVarParts( ).size( );
+			int varsNum = writePort.parts( ).size( );
 
 			String templateAttr = "";
 			if ( mapKey.equals( MapKeys.WRITE_PORTS ) ) {
 				templateAttr = "intWPorts";
-				ret = MapUtils.addToBIPCode( applyASS( varsNum - hereNum , hereNum ) , ret );
+				MapUtils.addToBIPCode( ret , applyASS( varsNum - hereNum , hereNum ) );
 			} else if ( mapKey.equals( MapKeys.READ_PORTS ) ) {
 				templateAttr = "intRPorts";
-				ret = MapUtils.addToBIPCode( applyRDD( varsNum - hereNum , hereNum ) , ret );
+				MapUtils.addToBIPCode( ret , applyRDD( varsNum - hereNum , hereNum ) );
 			}
 
 			RwPort forTemplate = writePort.clone( );
-			writePort.getVarParts( ).removeAll( dataList );
+			writePort.parts( ).removeAll( dataList );
 
 			// prepare port for template
 			forTemplate.setHereNums( hereNum );
 			forTemplate.setContNums( varsNum - hereNum );
-			forTemplate.getVarParts( ).removeAll( writePort.getVarParts( ) );
+			forTemplate.parts( ).removeAll( writePort.parts( ) );
 
 			ArrayList < String > toTemplate = forTemplate.toArray4Template( templateAttr );
 			AttrFiller.addToTemplate( toTemplate , template , templateAttr );
@@ -4531,19 +3893,19 @@ public class TemplateMaker {
 			String templateAttr = "";
 			if ( mapKey.equals( MapKeys.WRITE_PORTS ) ) {
 				templateAttr = "expWPorts";
-				ret = MapUtils.addToBIPCode( applyAAS( new int [ ] { writePort.getVarParts( ).size( ) } , true ) , ret );
+				MapUtils.addToBIPCode( ret , applyAAS( new int [ ] { writePort.parts( ).size( ) } , true ) );
 			} else if ( mapKey.equals( MapKeys.READ_PORTS ) ) {
 				templateAttr = "expRPorts";
-				ret = MapUtils.addToBIPCode( applyRDVAR( writePort.getVarParts( ).size( ) , true ) , ret );
-				ret = MapUtils.addToCPPCode( applyRDVAR_DOWN_CPP( writePort.getVarParts( ).size( ) ) , ret );
-				ret = MapUtils.addToHPPCode( applyRDVAR_DOWN_HPP( writePort.getVarParts( ).size( ) ) , ret );
+				MapUtils.addToBIPCode( ret , applyRDVAR( writePort.parts( ).size( ) , true ) );
+				ret = MapUtils.addToCPPCode( applyRDVAR_DOWN_CPP( writePort.parts( ).size( ) ) , ret );
+				ret = MapUtils.addToHPPCode( applyRDVAR_DOWN_HPP( writePort.parts( ).size( ) ) , ret );
 			}
 
 			ArrayList < String > toTemplate = writePort.toArray4Template( templateAttr );
 			MapUtils.addToMap( templatePortsMap , templateAttr , toTemplate , -1 );
 			// export the port
 			ret.get( mapKey ).add( writePort );
-			// ret = MapUtils.addToBIPCode( applyAAS( new int [ ] {
+			// MapUtils.addToBIPCode( applyAAS( new int [ ] {
 			// writePort.getVarParts( ).size( ) } , true ) , ret );
 		}
 		return ret;
@@ -4558,31 +3920,31 @@ public class TemplateMaker {
 		// clone of the readPort and process for template
 		RwPort forTemplate = readPort.clone( );
 		// get parts declared in scope
-		HashSet < String > partsInScopeSet = ( HashSet < String > ) MapUtils.getMapSingleEntry( vars , MapKeys.VARIABLES_HASH );
-		HashSet < String > dataList = ( HashSet < String > ) MapUtils.getMapSingleEntry( vars , MapKeys.DATA_LIST );
+		HashSet < String > partsInScopeSet = ( HashSet < String > ) MapUtils.getSingleEntry( vars , MapKeys.VARIABLES_HASH );
+		HashSet < String > dataList = ( HashSet < String > ) MapUtils.getSingleEntry( vars , MapKeys.DATA_LIST );
 
 		// int hereNum = 0; // num of var_parts defined in scope
 		// var_parts are ordered: leftmost ports with parts declared
 		// higher
-		ArrayList partsInPort = new ArrayList( readPort.getVarParts( ) );
+		ArrayList partsInPort = new ArrayList( readPort.parts( ) );
 		for ( String part : ( ArrayList < String > ) partsInPort ) {
 			if ( partsInScopeSet != null && partsInScopeSet.contains( part ) ) {
 				// if the part is in the scope
 				// hereNum++; // increase here parts num
 				// portHereNum++; // increase q
 				// remove the part from readPort (it won't be exported)
-				readPort.getVarParts( ).remove( part );
+				readPort.parts( ).remove( part );
 				// add the part to the dataList (used in scope data store)
 				dataList.add( part );
 			} else {
 				// if the part is not in the scope
 				// l++; // increase l
 				// remove the part to be exported
-				forTemplate.getVarParts( ).remove( part );
+				forTemplate.parts( ).remove( part );
 			}
 		}
 
-		int hereNum = forTemplate.getVarParts( ).size( );
+		int hereNum = forTemplate.parts( ).size( );
 		forTemplate.setHereNums( hereNum );
 		if ( hereNum > 0 ) {
 			// if there are parts in this scope: add to template as "intWPorts"
@@ -4590,9 +3952,9 @@ public class TemplateMaker {
 			AttrFiller.addToTemplate( toTemplate , template , "intRPorts" );
 			// calculate varsNum as the parts of the write port + the parts
 			// declared here
-			int varsNum = readPort.getVarParts( ).size( ) + hereNum;
+			int varsNum = readPort.parts( ).size( ) + hereNum;
 
-			// ret = MapUtils.addToBIPCode( applyRDVAR( readPort.getVarParts(
+			// MapUtils.addToBIPCode( applyRDVAR( readPort.getVarParts(
 			// ).size( ),
 			// false ) , ret );
 			// ret = addToCPPCode( applyRDVAR_DOWN_CPP( readPort.getVarParts(
@@ -4600,10 +3962,10 @@ public class TemplateMaker {
 			// ret = addToHPPCode( applyRDVAR_DOWN_HPP( readPort.getVarParts(
 			// ).size( ) ) , ret );
 
-			ret = MapUtils.addToBIPCode( applyRDD( varsNum , hereNum ) , ret );
+			MapUtils.addToBIPCode( ret , applyRDD( varsNum , hereNum ) );
 			if ( hereNum < varsNum ) {
 				// if there are var_parts in higher scopes, export the writePort
-				ret.get( MapKeys.READ_PORTS ).add( readPort );
+				MapUtils.addToMapEntry( ret , MapKeys.READ_PORTS , readPort );
 			}
 		} else {
 			// if there are no parts in this scope: add to template as
@@ -4611,14 +3973,14 @@ public class TemplateMaker {
 			ArrayList < String > toTemplate = readPort.toArray4Template( "expRPorts" );
 			MapUtils.addToMap( templatePortsMap , "expRPorts" , toTemplate , -1 );
 			// export the port
-			ret.get( MapKeys.READ_PORTS ).add( readPort );
-			// ret = MapUtils.addToBIPCode( applyAAS( new int [ ] {
+			MapUtils.addToMapEntry( ret , MapKeys.READ_PORTS , readPort );
+			// MapUtils.addToBIPCode( applyAAS( new int [ ] {
 			// readPort.getVarParts(
 			// ).size( ) } , true ) , ret );
 
-			ret = MapUtils.addToBIPCode( applyRDVAR( readPort.getVarParts( ).size( ) , true ) , ret );
-			ret = MapUtils.addToCPPCode( applyRDVAR_DOWN_CPP( readPort.getVarParts( ).size( ) ) , ret );
-			ret = MapUtils.addToHPPCode( applyRDVAR_DOWN_HPP( readPort.getVarParts( ).size( ) ) , ret );
+			MapUtils.addToBIPCode( ret , applyRDVAR( readPort.parts( ).size( ) , true ) );
+			ret = MapUtils.addToCPPCode( applyRDVAR_DOWN_CPP( readPort.parts( ).size( ) ) , ret );
+			ret = MapUtils.addToHPPCode( applyRDVAR_DOWN_HPP( readPort.parts( ).size( ) ) , ret );
 		}
 		return ret;
 
@@ -4631,14 +3993,14 @@ public class TemplateMaker {
 		RwPort readPort = ( RwPort ) port;
 		HashSet varHash = ( HashSet ) vars.get( MapKeys.VARIABLES_HASH ).get( 0 );
 		// varHash exists in Scope
-		if ( varHash != null && varHash.contains( readPort.getVarParts( ).get( 0 ) ) ) {
+		if ( varHash != null && varHash.contains( readPort.parts( ).get( 0 ) ) ) {
 			/* include it in readdata and intRPorts */
-			HashSet < String > dataList = ( HashSet < String > ) MapUtils.getMapSingleEntry( vars , MapKeys.DATA_LIST );
-			dataList.addAll( readPort.getVarParts( ) );
+			HashSet < String > dataList = ( HashSet < String > ) MapUtils.getSingleEntry( vars , MapKeys.DATA_LIST );
+			dataList.addAll( readPort.parts( ) );
 
-			ret = MapUtils.addToBIPCode( applyRDVAR( readPort.getVarParts( ).size( ) , false ) , ret );
-			ret = MapUtils.addToCPPCode( applyRDVAR_DOWN_CPP( readPort.getVarParts( ).size( ) ) , ret );
-			ret = MapUtils.addToHPPCode( applyRDVAR_DOWN_HPP( readPort.getVarParts( ).size( ) ) , ret );
+			MapUtils.addToBIPCode( ret , applyRDVAR( readPort.parts( ).size( ) , false ) );
+			ret = MapUtils.addToCPPCode( applyRDVAR_DOWN_CPP( readPort.parts( ).size( ) ) , ret );
+			ret = MapUtils.addToHPPCode( applyRDVAR_DOWN_HPP( readPort.parts( ).size( ) ) , ret );
 			// intRPorts: 0:(varNums0, portName0, comp0, parts0)
 
 			ArrayList < String > toTemplate = readPort.toArray4Template( "intRPorts" );
@@ -4649,8 +4011,8 @@ public class TemplateMaker {
 			/* as 0:(varNums0, portName0, lastInd0) */
 			ArrayList < String > toTemplate = readPort.toArray4Template( "expRPorts" );
 			MapUtils.addToMap( templatePortsMap , "expRPorts" , toTemplate , -1 );
-			ret.get( MapKeys.READ_PORTS ).add( readPort );
-			ret = MapUtils.addToBIPCode( applyRDVAR( readPort.getVarParts( ).size( ) , true ) , ret );
+			MapUtils.addToMapEntry( ret , MapKeys.READ_PORTS , readPort );
+			MapUtils.addToBIPCode( ret , applyRDVAR( readPort.parts( ).size( ) , true ) );
 		}
 
 		return ret;
@@ -4708,7 +4070,7 @@ public class TemplateMaker {
 		Iterator it = stack.iterator( );
 		while ( it.hasNext( ) ) {
 			HashMap < String , ArrayList > vars = ( HashMap < String , ArrayList > ) it.next( );
-			String variablesMsg = ( String ) MapUtils.getMapSingleEntry( vars , MapKeys.VARIABLES_MSG );
+			String variablesMsg = ( String ) MapUtils.getSingleEntry( vars , MapKeys.VARIABLES_MSG );
 			if ( variablesMsg != null ) {
 				type = variablesMsg;
 			}
@@ -4720,34 +4082,12 @@ public class TemplateMaker {
 	private String applyFOBSERVER( ArrayList < String > fhlist ) throws Exception {
 
 		StringTemplate template;
-		if ( !tmplInst.addInstance( "FaultObserver" ) ) {
+		if ( !templateList.addInstance( "FaultObserver" ) ) {
 			template = AttrFiller.getTemplate( templateFile , "FOBSERVER" );
 			template.setAttribute( "FHandlersList" , fhlist );
 			return template.toString( );
 		}
 		return "";
-	}
-
-
-	private String applyPortTypeDecl( int intN , int boolN ) throws Exception {
-
-		if ( tmplInst.addInstance( "e" + intN + "b" + boolN + "port" ) == false ) {
-			return "";
-		}
-		StringTemplate template = AttrFiller.getTemplate( templateFile , "portTypeDecl" );
-		template = addEnumerationToTemplate( template , "intList" , 1 , intN );
-		template = addEnumerationToTemplate( template , "boolList" , intN + 1 , intN + boolN );
-		template.setAttribute( "boolNum" , boolN );
-		return "\n" + template.toString( );
-	}
-
-
-	private StringTemplate addEnumerationToTemplate( StringTemplate template , String attribute , int start , int end ) {
-
-		for ( int i = start ; i <= end ; i++ ) {
-			template.setAttribute( attribute , i );
-		}
-		return template;
 	}
 
 
@@ -4759,7 +4099,7 @@ public class TemplateMaker {
 		if ( ( template = prepareTemplate( templateName , templateLabel ) ) == null ) {
 			return "";
 		}
-		template = addEnumerationToTemplate( template , "intList" , 1 , intN );
+		AttrFiller.addEnumerationToTemplate( template , "intList" , 1 , intN );
 		return template.toString( );
 	}
 
@@ -4772,7 +4112,7 @@ public class TemplateMaker {
 		if ( ( template = prepareTemplate( templateName , templateLabel ) ) == null ) {
 			return "";
 		}
-		template = addEnumerationToTemplate( template , "intList" , 1 , intN );
+		AttrFiller.addEnumerationToTemplate( template , "intList" , 1 , intN );
 		return template.toString( );
 	}
 
@@ -4785,7 +4125,7 @@ public class TemplateMaker {
 		if ( ( template = prepareTemplate( templateName , templateLabel ) ) == null ) {
 			return "";
 		}
-		template = addEnumerationToTemplate( template , "intList" , 1 , intN );
+		AttrFiller.addEnumerationToTemplate( template , "intList" , 1 , intN );
 		return template.toString( );
 	}
 
@@ -4798,7 +4138,7 @@ public class TemplateMaker {
 		if ( ( template = prepareTemplate( templateName , templateLabel ) ) == null ) {
 			return "";
 		}
-		template = addEnumerationToTemplate( template , "intList" , 1 , intN );
+		AttrFiller.addEnumerationToTemplate( template , "intList" , 1 , intN );
 		return template.toString( );
 	}
 
@@ -4811,7 +4151,7 @@ public class TemplateMaker {
 		if ( ( template = prepareTemplate( templateName , templateLabel ) ) == null ) {
 			return "";
 		}
-		template = addEnumerationToTemplate( template , "intList" , 1 , intN );
+		AttrFiller.addEnumerationToTemplate( template , "intList" , 1 , intN );
 		return template.toString( );
 	}
 
@@ -4854,7 +4194,7 @@ public class TemplateMaker {
 		if ( ( template = prepareTemplate( templateName , templateLabel ) ) == null ) {
 			return "";
 		}
-		template = AttrFiller.addEnumAndPWsetToTemplate( template , "intList" , 1 , intN );
+		AttrFiller.addEnumAndPWsetToTemplate( template , "intList" , 1 , intN );
 
 		return template.toString( );
 	}
@@ -4868,7 +4208,7 @@ public class TemplateMaker {
 		if ( ( template = prepareTemplate( templateName , templateLabel ) ) == null ) {
 			return "";
 		}
-		template = addEnumerationToTemplate( template , "intList" , 1 , intN );
+		AttrFiller.addEnumerationToTemplate( template , "intList" , 1 , intN );
 
 		return template.toString( );
 	}
@@ -4885,12 +4225,12 @@ public class TemplateMaker {
 		if ( ( template = prepareTemplate( templateName , templateLabel ) ) == null ) {
 			return "";
 		}
-		template = addEnumerationToTemplate( template , "intList" , 2 , intN );
+		AttrFiller.addEnumerationToTemplate( template , "intList" , 2 , intN );
 		return template.toString( );
 	}
 
 
-	private String applyRDV( int intN , boolean withExport ) throws Exception {
+	public static String applyRDV( int intN , boolean withExport ) {
 
 		if ( intN == 0 ) {
 			return "";
@@ -4901,21 +4241,38 @@ public class TemplateMaker {
 		if ( ( template = prepareTemplate( templateName , templateLabel ) ) == null ) {
 			return "";
 		}
-		template = addEnumerationToTemplate( template , "intList" , 1 , intN );
+		AttrFiller.addEnumerationToTemplate( template , "intList" , 1 , intN );
 		return template.toString( );
 	}
 
 
-	private StringTemplate prepareTemplate( String templateName , String templateLabel ) throws Exception {
+	public static StringTemplate prepareTemplate( String templateName , String templateLabel ) {
 
-		if ( tmplInst.addInstance( templateName ) == false ) {
-			return null;
+		try {
+			if ( templateList.addInstance( templateName ) == true ) {
+				return AttrFiller.getTemplate( templateFile , templateLabel );
+			}
+		} catch ( Exception e ) {
+			// TODO Auto-generated catch block
+			e.printStackTrace( );
 		}
-		return AttrFiller.getTemplate( templateFile , templateLabel );
+		return null;
 	}
 
 
-	private String applyRDVAR( int varsNum , boolean withExport ) throws Exception {
+	public static String applyEmptyTemplate( String templateName , String templateLabel ) {
+
+		StringTemplate template = prepareTemplate( templateName , templateLabel );
+		if ( template == null ) {
+			return "";
+		}else{
+			return template.toString( );
+		}
+
+	}
+
+
+	public static String applyRDVAR( int varsNum , boolean withExport ) throws Exception {
 
 		String templateLabel = ( withExport ) ? "RDVARD" : "RDVAR";
 		String templateName = templateLabel + varsNum;
@@ -4924,7 +4281,7 @@ public class TemplateMaker {
 			return "";
 		}
 		String s = "\n";
-		template = addEnumerationToTemplate( template , "intList" , 1 , varsNum );
+		AttrFiller.addEnumerationToTemplate( template , "intList" , 1 , varsNum );
 		// s += applyPortTypeDecl(intN, 0);
 
 		s += "\n\n" + template.toString( );
@@ -4932,38 +4289,32 @@ public class TemplateMaker {
 	}
 
 
-	private String applyRDVAR_DOWN_HPP( int intN ) throws Exception {
+	public static String applyRDVAR_DOWN_HPP( int intN ) throws Exception {
 
-		if ( !tmplInst.addInstance( "RDVAR_DOWN_HPP" + intN ) ) {
+		if ( !templateList.addInstance( "RDVAR_DOWN_HPP" + intN ) ) {
 			return "";
 		}
 
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "RDVAR_DOWN_HPP" );
-		template = addEnumerationToTemplate( template , "intList" , 1 , intN );
+		AttrFiller.addEnumerationToTemplate( template , "intList" , 1 , intN );
 		template.setAttribute( "intNum" , intN );
 		return "\n\n" + template.toString( );
 	}
 
 
-	private String applyRDVAR_DOWN_CPP( int intN ) throws Exception {
+	public static String applyRDVAR_DOWN_CPP( int intN ) throws Exception {
 
-//		String templateLabel = "RDVAR_DOWN_CPP";
-//		String templateName = templateLabel + intN;
-//		StringTemplate template;
-//		if ( ( template = prepareTemplate( templateName , templateLabel ) ) == null ) {
-//			return "";
-//		}
-		if ( ! tmplInst.addInstance( "RDVAR_DOWN_CPP" + intN ) ) {
+		if ( !templateList.addInstance( "RDVAR_DOWN_CPP" + intN ) ) {
 			return "";
 		}
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "RDVAR_DOWN_CPP" );
-		template = addEnumerationToTemplate( template , "intList" , 1 , intN );
+		AttrFiller.addEnumerationToTemplate( template , "intList" , 1 , intN );
 		template.setAttribute( "intNum" , intN );
 		return "\n\n" + template.toString( );
 	}
 
 
-	public String applyAAS( int [ ] portNums , boolean withExport ) throws Exception {
+	public static String applyAAS( int [ ] portNums , boolean withExport ) throws Exception {
 
 		String intList = "" + portNums[ 0 ];
 		for ( int i = 1 ; i < portNums.length ; i++ ) {
@@ -5003,7 +4354,7 @@ public class TemplateMaker {
 
 	private String applyConnTemplate( String templateName ) throws Exception {
 
-		if ( tmplInst.addInstance( templateName ) ) {
+		if ( templateList.addInstance( templateName ) ) {
 			return AttrFiller.getTemplate( templateFile , templateName ).toString( );
 		}
 		return "";
@@ -5021,8 +4372,8 @@ public class TemplateMaker {
 		String s = "";
 		s += "\n" + applyPortTypeDecl( intNum , boolNum );
 
-		template = addEnumerationToTemplate( template , "intList" , 1 , intNum );
-		template = addEnumerationToTemplate( template , "boolList" , intNum + 1 , intNum + boolNum );
+		AttrFiller.addEnumerationToTemplate( template , "intList" , 1 , intNum );
+		AttrFiller.addEnumerationToTemplate( template , "boolList" , intNum + 1 , intNum + boolNum );
 
 		if ( intNum > 0 ) {
 			template.setAttribute( "intList" , String.valueOf( intNum ) );
@@ -5044,9 +4395,9 @@ public class TemplateMaker {
 			return "";
 		}
 		String s = "\n";
-		template = addEnumerationToTemplate( template , "hereList" , 1 , hereNum );
+		AttrFiller.addEnumerationToTemplate( template , "hereList" , 1 , hereNum );
 		// one varsNum+1 for the extra variable 'undefVar'
-		template = addEnumerationToTemplate( template , "contList" , hereNum + 1 , varsNum );
+		AttrFiller.addEnumerationToTemplate( template , "contList" , hereNum + 1 , varsNum );
 
 		s += applyPortTypeDecl( varsNum , 0 );
 		s += applyPortTypeDecl( hereNum , 0 );
@@ -5060,7 +4411,7 @@ public class TemplateMaker {
 
 
 	// array with var_parts declared in the scope
-	public String applyASS( int contNum , int hereNum ) throws Exception {
+	public static String applyASS( int contNum , int hereNum ) throws Exception {
 
 		// cont: 1, .., M, here: M+1, ..., N
 		String templateName = "ASS" + contNum + "o" + hereNum;
@@ -5069,12 +4420,12 @@ public class TemplateMaker {
 			return "";
 		}
 		String s = "\n";
-		// template = addEnumerationToTemplate( template , "hereList" , 1 ,
+		// AttrFiller.addEnumerationToTemplate( template , "hereList" , 1 ,
 		// hereNum );
-		// template = addEnumerationToTemplate( template , "contList" , hereNum
+		// AttrFiller.addEnumerationToTemplate( template , "contList" , hereNum
 		// + 1 , varsNum );
-		template = addEnumerationToTemplate( template , "contList" , 1 , contNum );
-		template = addEnumerationToTemplate( template , "hereList" , contNum + 1 , contNum + hereNum );
+		AttrFiller.addEnumerationToTemplate( template , "contList" , 1 , contNum );
+		AttrFiller.addEnumerationToTemplate( template , "hereList" , contNum + 1 , contNum + hereNum );
 		s += applyPortTypeDecl( hereNum , 0 );
 		if ( contNum > 0 ) {
 			s += applyPortTypeDecl( contNum , 0 );
@@ -5089,7 +4440,7 @@ public class TemplateMaker {
 	}
 
 
-	private String applyRDD( int contNum , int hereNum ) throws Exception {
+	public static String applyRDD( int contNum , int hereNum ) throws Exception {
 
 		// cont: 1, .., M, here: M+1, ..., N
 		String templateName = "RDD" + contNum + "o" + hereNum;
@@ -5098,8 +4449,8 @@ public class TemplateMaker {
 			return "";
 		}
 		String s = "\n";
-		template = addEnumerationToTemplate( template , "contList" , 1 , contNum );
-		template = addEnumerationToTemplate( template , "hereList" , contNum + 1 , contNum + hereNum );
+		AttrFiller.addEnumerationToTemplate( template , "contList" , 1 , contNum );
+		AttrFiller.addEnumerationToTemplate( template , "hereList" , contNum + 1 , contNum + hereNum );
 		s += applyPortTypeDecl( hereNum , 0 );
 		if ( contNum > 0 ) {
 			s += applyPortTypeDecl( contNum , 0 );
@@ -5133,10 +4484,10 @@ public class TemplateMaker {
 	public HashMap < String , ArrayList > applyEMPTYACT( Element elem , ArrayDeque < HashMap < String , ArrayList >> stack ) throws Exception {
 
 		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
-		String compName = "empty_" + ( tmplInst.getSize( ) + 1 );
+		String compName = "empty_" + ( templateList.getSize( ) + 1 );
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "EMPTYACT" );
-		template.setAttribute( "id" , ( tmplInst.getSize( ) + 1 ) );
-		MapUtils.addToBIPCode( template.toString( ) , ret );
+		template.setAttribute( "id" , ( templateList.getSize( ) + 1 ) );
+		MapUtils.addToBIPCode( ret , template.toString( ) );
 
 		MapUtils.addToMap( ret , MapKeys.CHILD_COMP , compName , -1 );
 		MapUtils.addToMap( ret , MapKeys.SCOPE_ROLES , "MA" , -1 );
@@ -5144,7 +4495,7 @@ public class TemplateMaker {
 	}
 
 
-	private String applyEMPTYHANDLER( String type ) throws Exception {
+	public static String applyEMPTYHANDLER( String type ) throws Exception {
 
 		String templateLabel = "";
 		String templateName = "";
@@ -5184,7 +4535,7 @@ public class TemplateMaker {
 	}
 
 
-	private String applyANY( int intN , boolean withExport ) throws Exception {
+	public static String applyANY( int intN , boolean withExport ) {
 
 		if ( intN <= 0 ) {
 			return "";
@@ -5206,11 +4557,11 @@ public class TemplateMaker {
 
 	private String applyCHKRC1( int numOfCSflags ) throws Exception {
 
-		if ( !tmplInst.addInstance( "CHKRC1" + numOfCSflags ) ) {
+		if ( !templateList.addInstance( "CHKRC1" + numOfCSflags ) ) {
 			return "";
 		}
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "CHKRC1" );
-		template = addEnumerationToTemplate( template , "intList" , 1 , numOfCSflags + 1 );
+		AttrFiller.addEnumerationToTemplate( template , "intList" , 1 , numOfCSflags + 1 );
 		// +1 for the pl_pt_op_me
 
 		String s = "";
@@ -5224,11 +4575,11 @@ public class TemplateMaker {
 
 	private String applyCHKRC3( ) throws Exception {
 
-		if ( !tmplInst.addInstance( "CHKRC3" ) ) { // +numOfCSflags
+		if ( !templateList.addInstance( "CHKRC3" ) ) { // +numOfCSflags
 			return "";
 		}
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "CHKRC3" );
-		template = addEnumerationToTemplate( template , "intList" , 1 , 0 );
+		AttrFiller.addEnumerationToTemplate( template , "intList" , 1 , 0 );
 
 		String s = "";
 		s += applyPortTypeDecl( 0 , 0 ); // applyPortTypeDecl(0, numOfCSflags +
@@ -5242,11 +4593,11 @@ public class TemplateMaker {
 
 	private String applyCHKCV( int numOfCSflags ) throws Exception {
 
-		if ( !tmplInst.addInstance( "CHKCV" + numOfCSflags ) ) {
+		if ( !templateList.addInstance( "CHKCV" + numOfCSflags ) ) {
 			return "";
 		}
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "CHKCV" );
-		template = addEnumerationToTemplate( template , "intList" , 1 , numOfCSflags );
+		AttrFiller.addEnumerationToTemplate( template , "intList" , 1 , numOfCSflags );
 		template.setAttribute( "extra" , numOfCSflags + 1 );
 		template.setAttribute( "extra" , numOfCSflags + 2 );
 		String s = "";
@@ -5260,11 +4611,11 @@ public class TemplateMaker {
 
 	private String applyCHKRC4( int numOfCSflags ) throws Exception {
 
-		if ( !tmplInst.addInstance( "CHKRC4" + ( numOfCSflags ) ) ) {
+		if ( !templateList.addInstance( "CHKRC4" + ( numOfCSflags ) ) ) {
 			return "";
 		}
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "CHKRC4" );
-		template = addEnumerationToTemplate( template , "intList" , 1 , numOfCSflags );
+		AttrFiller.addEnumerationToTemplate( template , "intList" , 1 , numOfCSflags );
 		template.setAttribute( "extra" , numOfCSflags + 1 );
 		template.setAttribute( "extra" , numOfCSflags + 2 );
 		String s = "";
@@ -5279,7 +4630,7 @@ public class TemplateMaker {
 	private String applyCHKCVD( int numOfCS ) throws Exception {
 
 		String s = "";
-		if ( tmplInst.addInstance( "CHKCVD" + numOfCS ) ) {
+		if ( templateList.addInstance( "CHKCVD" + numOfCS ) ) {
 			StringTemplate template = AttrFiller.getTemplate( templateFile , "CHKCVD" );
 			int count = 0;
 			for ( int i = 0 ; i < numOfCS ; i++ ) {
@@ -5296,7 +4647,7 @@ public class TemplateMaker {
 	private String applyCHKRC1D( ) throws Exception {
 
 		String s = "";
-		if ( tmplInst.addInstance( "CHKRC1D" ) ) {
+		if ( templateList.addInstance( "CHKRC1D" ) ) {
 			StringTemplate template = AttrFiller.getTemplate( templateFile , "CHKRC1D" );
 			s += "\n\n" + template.toString( );
 		}
@@ -5324,14 +4675,14 @@ public class TemplateMaker {
 			throws Exception {
 
 		String s = "";
-		if ( tmplInst.addInstance( templateName ) ) {
+		if ( templateList.addInstance( templateName ) ) {
 			StringTemplate template = AttrFiller.getTemplate( templateFile , "CHKRPL" );
 			// ima,d
-			template = addEnumerationToTemplate( template , "csHList" , 1 , csHNum );
-			template = addEnumerationToTemplate( template , "csEList" , csHNum + 1 , csHNum + csENum ); // ima
-			template = addEnumerationToTemplate( template , "fltList" , csHNum + csENum + 1 , csHNum + csENum + 2 );// ima
+			AttrFiller.addEnumerationToTemplate( template , "csHList" , 1 , csHNum );
+			AttrFiller.addEnumerationToTemplate( template , "csEList" , csHNum + 1 , csHNum + csENum ); // ima
+			AttrFiller.addEnumerationToTemplate( template , "fltList" , csHNum + csENum + 1 , csHNum + csENum + 2 );// ima
 
-			template = addEnumerationToTemplate( template , "meH" , csHNum + 1 , csHNum + meHNum ); // d
+			AttrFiller.addEnumerationToTemplate( template , "meH" , csHNum + 1 , csHNum + meHNum ); // d
 
 			if ( withCS ) {
 				template.setAttribute( "withCS" , 1 );
@@ -5377,16 +4728,20 @@ public class TemplateMaker {
 			String templateName , int boolNumInDHS ) throws Exception {
 
 		String s = "";
-		if ( tmplInst.addInstance( templateName ) ) {
+		if ( templateList.addInstance( templateName ) ) {
 			StringTemplate template = AttrFiller.getTemplate( templateFile , "CHKRC5" );
 			// ima,d
-			template = addEnumerationToTemplate( template , "csHList" , 1 , csHNum ); // correlation sets here
-			template = addEnumerationToTemplate( template , "csEList" , csHNum + 1 , csHNum + csENum ); // correlation sets higher
-			template = addEnumerationToTemplate( template , "fltList" , csHNum + csENum + 1 , csHNum + csENum + 3 );// ima
+			AttrFiller.addEnumerationToTemplate( template , "csHList" , 1 , csHNum ); // correlation
+																						// sets
+																						// here
+			AttrFiller.addEnumerationToTemplate( template , "csEList" , csHNum + 1 , csHNum + csENum ); // correlation
+																										// sets
+																										// higher
+			AttrFiller.addEnumerationToTemplate( template , "fltList" , csHNum + csENum + 1 , csHNum + csENum + 3 );// ima
 
-			template = addEnumerationToTemplate( template , "cfHList" , csHNum + 1 , csHNum + cfHNum ); // d
-			template = addEnumerationToTemplate( template , "plH" , csHNum + cfHNum + 1 , csHNum + cfHNum + plHNum ); // d
-			template = addEnumerationToTemplate( template , "meH" , csHNum + cfHNum + plHNum + 1 , csHNum + cfHNum + plHNum + meHNum ); // d
+			AttrFiller.addEnumerationToTemplate( template , "cfHList" , csHNum + 1 , csHNum + cfHNum ); // d
+			AttrFiller.addEnumerationToTemplate( template , "plH" , csHNum + cfHNum + 1 , csHNum + cfHNum + plHNum ); // d
+			AttrFiller.addEnumerationToTemplate( template , "meH" , csHNum + cfHNum + plHNum + 1 , csHNum + cfHNum + plHNum + meHNum ); // d
 
 			template.setAttribute( "withCS" , withCS );
 			template.setAttribute( "csHNum" , csHNum );
@@ -5412,12 +4767,12 @@ public class TemplateMaker {
 
 		String s = "";
 		String templateName = "WRTMSG" + varHNum + "o" + varENum + "o" + csHNum + "o" + csENum;
-		if ( tmplInst.addInstance( templateName ) ) {
+		if ( templateList.addInstance( templateName ) ) {
 			StringTemplate template = AttrFiller.getTemplate( templateFile , templateName );
-			template = addEnumerationToTemplate( template , "varHList" , 1 , varHNum );
-			template = addEnumerationToTemplate( template , "csHList" , varHNum + 1 , varHNum + csHNum );
-			template = addEnumerationToTemplate( template , "varEList" , varHNum + csHNum + 1 , varHNum + csHNum + varHNum );
-			template = addEnumerationToTemplate( template , "csEList" , varHNum + csHNum + varHNum + 1 , varHNum + csHNum + varHNum + varENum );
+			AttrFiller.addEnumerationToTemplate( template , "varHList" , 1 , varHNum );
+			AttrFiller.addEnumerationToTemplate( template , "csHList" , varHNum + 1 , varHNum + csHNum );
+			AttrFiller.addEnumerationToTemplate( template , "varEList" , varHNum + csHNum + 1 , varHNum + csHNum + varHNum );
+			AttrFiller.addEnumerationToTemplate( template , "csEList" , varHNum + csHNum + varHNum + 1 , varHNum + csHNum + varHNum + varENum );
 
 			template.setAttribute( "varHNum" , varHNum );
 			template.setAttribute( "varENum" , varENum );
@@ -5436,13 +4791,13 @@ public class TemplateMaker {
 
 		String s = "";
 		String templateName = "CP2E" + intNum + "B" + boolNum;
-		if ( tmplInst.addInstance( templateName ) ) {
+		if ( templateList.addInstance( templateName ) ) {
 			s += "\n" + applyPortTypeDecl( intNum , boolNum );
 
 			StringTemplate template = AttrFiller.getTemplate( templateFile , "CP2EB" );
 
-			template = addEnumerationToTemplate( template , "intList" , 1 , intNum );
-			template = addEnumerationToTemplate( template , "boolList" , intNum + 1 , intNum + boolNum );
+			AttrFiller.addEnumerationToTemplate( template , "intList" , 1 , intNum );
+			AttrFiller.addEnumerationToTemplate( template , "boolList" , intNum + 1 , intNum + boolNum );
 			if ( intNum > 0 ) {
 				template.setAttribute( "intList" , String.valueOf( intNum ) );
 			}
@@ -5460,10 +4815,10 @@ public class TemplateMaker {
 	private String applyCHKRC2( int numOfCSflags ) throws Exception {
 
 		String s = "";
-		if ( tmplInst.addInstance( "CHKRC2" + numOfCSflags ) ) {
+		if ( templateList.addInstance( "CHKRC2" + numOfCSflags ) ) {
 			StringTemplate template = AttrFiller.getTemplate( templateFile , "CHKRC2" );
 			s += applyPortTypeDecl( 0 , numOfCSflags );
-			template = addEnumerationToTemplate( template , "intList" , 1 , numOfCSflags );
+			AttrFiller.addEnumerationToTemplate( template , "intList" , 1 , numOfCSflags );
 			s += "\n\n" + template.toString( );
 		}
 		return s;
@@ -5472,7 +4827,7 @@ public class TemplateMaker {
 
 	private String applyCHKRC2D( ) throws Exception {
 
-		if ( !tmplInst.addInstance( "CHKRC2D" ) ) {
+		if ( !templateList.addInstance( "CHKRC2D" ) ) {
 			return "";
 		}
 		return AttrFiller.getTemplate( templateFile , "CHKRC2D" ).toString( );
@@ -5483,7 +4838,7 @@ public class TemplateMaker {
 
 		String tmplName = ( withExport ) ? "CHKMRD" : "CHKMR";
 		String s = "";
-		if ( tmplInst.addInstance( tmplName ) ) {
+		if ( templateList.addInstance( tmplName ) ) {
 			s += applyPortTypeDecl( 0 , 1 );
 			s += "\n" + AttrFiller.getTemplate( templateFile , tmplName ).toString( );
 		}
@@ -5493,7 +4848,7 @@ public class TemplateMaker {
 
 	private String applyRCV( ) throws Exception {
 
-		if ( !tmplInst.addInstance( "RCV" ) ) {
+		if ( !templateList.addInstance( "RCV" ) ) {
 			return "";
 		}
 		return AttrFiller.getTemplate( templateFile , "RCV" ).toString( );
@@ -5505,11 +4860,11 @@ public class TemplateMaker {
 		// SFH is a connector type for start_handle interaction
 		String tmplName = "SFH" + N;
 		String s = "";
-		if ( !tmplInst.addInstance( tmplName ) ) {
+		if ( !templateList.addInstance( tmplName ) ) {
 			return s;
 		}
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "SFH" );
-		template = addEnumerationToTemplate( template , "intList" , 1 , N );
+		AttrFiller.addEnumerationToTemplate( template , "intList" , 1 , N );
 		// s += applyPortTypeDecl(2, 0);
 		s += "\n" + template.toString( );
 		return s;
@@ -5518,7 +4873,7 @@ public class TemplateMaker {
 
 	private String applyCHKRC2XD( int intN ) throws Exception {
 
-		if ( !tmplInst.addInstance( "CHKRC2XD" + intN ) ) {
+		if ( !templateList.addInstance( "CHKRC2XD" + intN ) ) {
 			return "";
 		}
 		String s = "\n";
@@ -5526,25 +4881,7 @@ public class TemplateMaker {
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "CHKRC2XD" );
 
 		AttrFiller.addEnumAndPWsetToTemplate( template , "intList" , 1 , intN );
-		// Set < Integer > p = new HashSet < Integer >( intN );
-		// for ( int i = 0 ; i < intN ; i++ ) {
-		// template.setAttribute( "intList" , i + 1 );
-		// p.add( i + 1 );
-		// }
-		// // find subsets
-		// Set < Set < Integer >> ps = powerSet( p );
-		// // arrange the sets in an arrayList
-		// ArrayList < Set < Integer >> al = new ArrayList < Set < Integer >>(
-		// ps.size( ) );
-		// for ( int i = intN ; i > 1 ; i-- ) {
-		// // get all sets of size i
-		// for ( Set < Integer > set : ps ) {
-		// if ( set.size( ) == i ) {
-		// al.add( set );
-		// }
-		// }
-		// }
-		// template.setAttribute( "portSets" , al );
+
 		s += "\n\n" + template.toString( );
 		return s;
 	}
@@ -5552,32 +4889,14 @@ public class TemplateMaker {
 
 	private String applyCHKRC2X( int intN ) throws Exception {
 
-		if ( !tmplInst.addInstance( "CHKRC2X" + intN ) ) {
+		if ( !templateList.addInstance( "CHKRC2X" + intN ) ) {
 			return "";
 		}
 		String s = "\n";
 		s += applyPortTypeDecl( 0 , 1 );
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "CHKRC2X" );
-		template = AttrFiller.addEnumAndPWsetToTemplate( template , "intList" , 1 , intN );
-		// Set < Integer > p = new HashSet < Integer >( intN );
-		// for ( int i = 0 ; i < intN ; i++ ) {
-		// template.setAttribute( "intList" , i + 1 );
-		// p.add( i + 1 );
-		// }
-		// // find subsets
-		// Set < Set < Integer >> ps = powerSet( p );
-		// // arrange the sets in an arrayList
-		// ArrayList < Set < Integer >> al = new ArrayList < Set < Integer >>(
-		// ps.size( ) );
-		// for ( int i = intN ; i > 1 ; i-- ) {
-		// // get all sets of size i
-		// for ( Set < Integer > set : ps ) {
-		// if ( set.size( ) == i ) {
-		// al.add( set );
-		// }
-		// }
-		// }
-		// template.setAttribute( "portSets" , al );
+		AttrFiller.addEnumAndPWsetToTemplate( template , "intList" , 1 , intN );
+
 		s += "\n\n" + template.toString( );
 		return s;
 	}
@@ -5585,32 +4904,14 @@ public class TemplateMaker {
 
 	private String applyCHKRCD( int intN ) throws Exception {
 
-		if ( !tmplInst.addInstance( "CHKRC" + intN + "D" ) ) {
+		if ( !templateList.addInstance( "CHKRC" + intN + "D" ) ) {
 			return "";
 		}
 		String s = "\n";
 		s += applyPortTypeDecl( 0 , 1 );
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "CHKRCD" );
-		template = AttrFiller.addEnumAndPWsetToTemplate( template , "intList" , 1 , intN );
-		// Set < Integer > p = new HashSet < Integer >( intN );
-		// for ( int i = 0 ; i < intN ; i++ ) {
-		// template.setAttribute( "intList" , i + 1 );
-		// p.add( i + 1 );
-		// }
-		// // find subsets
-		// Set < Set < Integer >> ps = powerSet( p );
-		// // arrange the sets in an arrayList
-		// ArrayList < Set < Integer >> al = new ArrayList < Set < Integer >>(
-		// ps.size( ) );
-		// for ( int i = intN ; i > 1 ; i-- ) {
-		// // get all sets of size i
-		// for ( Set < Integer > set : ps ) {
-		// if ( set.size( ) == i ) {
-		// al.add( set );
-		// }
-		// }
-		// }
-		// template.setAttribute( "portSets" , al );
+		AttrFiller.addEnumAndPWsetToTemplate( template , "intList" , 1 , intN );
+
 		s += template.toString( );
 		return s;
 	}
@@ -5620,22 +4921,19 @@ public class TemplateMaker {
 	private HashMap < String , ArrayList > applyBOOLEVAL( Element el , ArrayDeque < HashMap < String , ArrayList >> stack ) throws Exception {
 
 		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
-		ret.put( MapKeys.READ_PORTS , new ArrayList( 1 ) );
-		ret.put( MapKeys.TAG , new ArrayList( 1 ) );
-		ret.get( MapKeys.TAG ).add( "booleval" );
-		ret.put( MapKeys.BIP_CODE , new ArrayList( 1 ) );
-		ret.put( MapKeys.FAULTS_LIST , new ArrayList < Object >( ) );
+
+		MapUtils.addToMapEntry( ret , MapKeys.TAG , "booleval" );
 
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "BOOLEVAL" );
-		String templateNum = String.valueOf( tmplInst.getSize( ) + 1 );
+		String templateNum = String.valueOf( templateList.getSize( ) + 1 );
 		String compName = "booleval_" + templateNum;
 		template.setAttribute( "id" , templateNum );
-		tmplInst.addInstance( compName );
+		templateList.addInstance( compName );
 		MapUtils.addToMap( ret , MapKeys.CHILD_COMP , compName , -1 );
 		// TODO: Expression is not processed correctly yet
 		ExpressionParsingUtils.processExpression( el , "condition" , stack , ret , template , "expression" , "true" );
 
-		ret = MapUtils.addToBIPCode( "\n\n" + template.toString( ) , ret );
+		MapUtils.addToBIPCode( ret , "\n\n" + template.toString( ) );
 		return ret;
 	}
 
@@ -5643,15 +4941,12 @@ public class TemplateMaker {
 	private HashMap < String , ArrayList > applyEVAL( Element el , ArrayDeque < HashMap < String , ArrayList >> stack ) throws Exception {
 
 		HashMap < String , ArrayList > ret = new HashMap < String , ArrayList >( );
-		ret.put( MapKeys.READ_PORTS , new ArrayList( 1 ) );
-		ret.put( MapKeys.BIP_CODE , new ArrayList( 1 ) );
-		ret.put( MapKeys.FAULTS_LIST , new ArrayList < Object >( ) );
 
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "EVAL" );
-		String templateNum = String.valueOf( tmplInst.getSize( ) + 1 );
+		String templateNum = String.valueOf( templateList.getSize( ) + 1 );
 		String compName = "eval_" + templateNum;
 		template.setAttribute( "id" , templateNum );
-		tmplInst.addInstance( compName );
+		templateList.addInstance( compName );
 		MapUtils.addToMap( ret , MapKeys.SCOPE_ROLES , "MA" , -1 );
 		MapUtils.addToMap( ret , MapKeys.CHILD_COMP , compName , -1 );
 
@@ -5672,8 +4967,8 @@ public class TemplateMaker {
 
 		HashMap < String , ArrayList > vars = stack.peek( );
 		HashMap templatePortsMap = new HashMap( );
-		ret = exportPorts( vars , templatePortsMap , template , ret , false );
-		ret = MapUtils.addToBIPCode( "\n\n" + template.toString( ) , ret );
+		exportPorts( vars , templatePortsMap , template , ret , false );
+		MapUtils.addToBIPCode( ret , "\n\n" + template.toString( ) );
 		return ret;
 
 	}

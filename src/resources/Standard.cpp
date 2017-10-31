@@ -2,6 +2,8 @@
 #include<iostream>
 #include<set>
 #include<string>
+#include<ostream>
+
 
 long bool_sizeof(const bool& q){
 	return 1;
@@ -85,6 +87,7 @@ string line;
 //			return initialize;
 //}
 
+/*
 void CS_setValues(CorrelationSet& cs,string s,int i){
 	cs.name=s; cs.initialize=i;
 }
@@ -94,3 +97,4 @@ int CS_getInitialize(CorrelationSet cs){
 string CS_getName(CorrelationSet cs){
 	return cs.name;
 }
+*/

@@ -42,7 +42,7 @@ public class Main2 {
 			compiler = new BPELCompiler( );
 			try {
 				String sourceProgramFolder = System.getProperty( "user.home" ) + "/Dropbox/eclipse_workspace/TestingBPEL/";
-				compiler.compile( BPELFileName , ( !PerformanceExperiment ) , sourceProgramFolder , BIPprojectPath , BIPprojectName , 0 , false );
+				compiler.compile( BPELFileName , ( !PerformanceExperiment ) , sourceProgramFolder , BIPprojectPath , BIPprojectName , false );
 
 			} catch ( Exception e ) {
 				// TODO Auto-generated catch block

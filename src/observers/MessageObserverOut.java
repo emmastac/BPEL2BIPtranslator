@@ -71,7 +71,7 @@ public class MessageObserverOut extends BIPPropertyObserver {
 			throws Exception {
 
 		StringTemplate template = AttrFiller.getTemplate( "/resources/msgObserver.stg" , "OBSERVER" );
-		template.setAttribute( "compName" , MapUtils.getMapSingleEntry( ret , MapKeys.CHILD_COMP ) );
+		template.setAttribute( "compName" , MapUtils.getSingleEntry( ret , MapKeys.CHILD_COMP ) );
 
 		String childComp = "bpelProcess_msgout_obs";
 		ret.get( MapKeys.CHILD_COMP ).remove( 0 );
@@ -110,7 +110,7 @@ public class MessageObserverOut extends BIPPropertyObserver {
 			}
 			ArrayList < String > toTemplate = msgPort.toArray4Template( "sndMsgPorts" );
 			AttrFiller.addToTemplate( toTemplate , template , "req" );
-			ret = MapUtils.addToBIPCode( tm.applyAAS( new int [ ] { 1 } , true ) , ret );
+			ret = MapUtils.addToBIPCode( ret , tm.applyAAS( new int [ ] { 1 } , true ) );
 		}
 
 		for ( IOMsgPort msgPort : ( ArrayList < IOMsgPort > ) ret.get( MapKeys.RCV_MESSAGE_PORTS ) ) {
@@ -120,10 +120,10 @@ public class MessageObserverOut extends BIPPropertyObserver {
 
 			ArrayList < String > toTemplate = msgPort.toArray4Template( "rcvMsgPorts" );
 			AttrFiller.addToTemplate( toTemplate , template , "resp" );
-			ret = MapUtils.addToBIPCode( tm.applyCPEB( 1 , 0 , false ) , ret );
+			ret = MapUtils.addToBIPCode( ret , tm.applyCPEB( 1 , 0 , false ) );
 		}
-		MapUtils.addToBIPCode( tm.applyBRDCAST( 2 , 1 , true ) , ret );
-		MapUtils.addToBIPCode( template.toString( ) , ret );
+		MapUtils.addToBIPCode( ret , tm.applyBRDCAST( 2 , 1 , true ) );
+		MapUtils.addToBIPCode( ret , template.toString( ) );
 
 		return;
 	}
@@ -195,12 +195,12 @@ public class MessageObserverOut extends BIPPropertyObserver {
 		Iterator it = stack.iterator( );
 		while ( it.hasNext( ) ) {
 			HashMap < String , ArrayList > vars = ( HashMap < String , ArrayList > ) it.next( );
-			HashMap < String , ArrayList < String >> partnerLinks = ( HashMap < String , ArrayList < String >> ) MapUtils.getMapSingleEntry( vars ,
+			HashMap < String , ArrayList < String >> partnerLinks = ( HashMap < String , ArrayList < String >> ) MapUtils.getSingleEntry( vars ,
 					MapKeys.PARTNER_LINKS );
 			ArrayList < String > partnerLinkEntry;
 			if ( partnerLinks != null && ( partnerLinkEntry = partnerLinks.get( partnerLink ) ) != null ) {
 				// get scope's name
-				partnerLinkScopeName = ( String ) MapUtils.getMapSingleEntry( vars , MapKeys.SCOPE_NAME );
+				partnerLinkScopeName = ( String ) MapUtils.getSingleEntry( vars , MapKeys.SCOPE_NAME );
 				partnerLinkType = partnerLinkEntry.get( 0 );
 				break;
 			}
@@ -220,12 +220,12 @@ public class MessageObserverOut extends BIPPropertyObserver {
 			it = stack.iterator( );
 			while ( it.hasNext( ) ) {
 				HashMap < String , ArrayList > vars = ( HashMap < String , ArrayList > ) it.next( );
-				HashMap < String , ArrayList < String >> corrSets = ( HashMap < String , ArrayList < String >> ) MapUtils.getMapSingleEntry( vars ,
+				HashMap < String , ArrayList < String >> corrSets = ( HashMap < String , ArrayList < String >> ) MapUtils.getSingleEntry( vars ,
 						MapKeys.CORRELATION_SETS );
 				ArrayList < String > partnerLinkEntry;
 				if ( corrSets != null && corrSets.get( csName ) != null ) {
 					// get scope's name
-					csScopeName = ( String ) MapUtils.getMapSingleEntry( vars , MapKeys.SCOPE_NAME );
+					csScopeName = ( String ) MapUtils.getSingleEntry( vars , MapKeys.SCOPE_NAME );
 					csSignature += "," + csScopeName + "::" + csName;
 					break;
 				}

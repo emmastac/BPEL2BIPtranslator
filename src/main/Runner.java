@@ -1,35 +1,31 @@
 package main;
 
+
 import org.apache.commons.cli.*;
 
 public class Runner {
 
 	public static void main( String [ ] args ) throws Exception {
 
-		// TODO: replace apache.commons.cli with JCommander at some point
+		Runner r = new Runner( );
+		Options opt = r.addCommandLineOptions( );
+		r.parseCommandLineOptions(opt, args);
+	}
+	
+	private Options addCommandLineOptions( ) {
 		Options options = new Options( );
-
-		Option help = new Option( "help" , "print this message" );
-		options.addOption( help );
-
-		Option goalTranslate = new Option( "translate" , "translate from BPEL to BIP" );
-		goalTranslate.setRequired( false );
-		options.addOption( goalTranslate );
-
-		Option goalAnalyzeOutput = new Option( "analyze" , "analyze BIP output" );
-		goalAnalyzeOutput.setRequired( false );
-		options.addOption( goalAnalyzeOutput );
 		
+		addCommandOption( options, "help" , "print this message", false);
+		addCommandOption( options, "translate" , "translate from BPEL to BIP", false);
+		addCommandOption( options, "analyze" , "analyze BIP output", false);
+		addCommandOption( options, "forExecution" , "translate from BPEL to BIP for execution", false);
+		addCommandWithArgsOption( options, "home" , "where is the Runner's home?", false, 1);
 		
-		Option goalForExecution = new Option( "forExecution" , "translate from BPEL to BIP for execution" );
-		goalForExecution.setRequired( false );
-		options.addOption( goalForExecution );
-
-		Option goalHomeInput = new Option( "home" , "where is the Runner's home?" );
-		goalHomeInput.setRequired( false );
-		goalHomeInput.setArgs(1);
-		options.addOption( goalHomeInput );
-
+		return options;
+	}
+	
+	private void parseCommandLineOptions( Options options, String [ ] args ) {
+		
 		CommandLineParser parser = new DefaultParser( );
 		HelpFormatter formatter = new HelpFormatter( );
 		CommandLine cmd;
@@ -43,29 +39,52 @@ public class Runner {
 			System.exit( 1 );
 			return;
 		}
-		
-		if(cmd.hasOption( "home" )){
+
+		if ( cmd.hasOption( "home" ) ) {
 			String home = cmd.getOptionValue( "home" );
-			Preferences.setHOME(home);
+			Preferences.setHOME( home );
 		}
-		if(cmd.hasOption( "forExecution" )){
-			Preferences.setForExecution(true);
-		}else{
-			Preferences.setForExecution(false);
-		}
-		
-		if ( cmd.hasOption( "help" ) ) {
-			formatter.printHelp( "utility-name" , options );
-		} else if ( cmd.hasOption( "analyze" ) ) {
-				AnalyzeOutput.analyzeBatch( );
-		} else if ( cmd.hasOption( "translate" ) ) {
-			
-			BPEL2BIP_Batch.translateAllProjectsInFile( );
+		if ( cmd.hasOption( "forExecution" ) ) {
+			Preferences.setForExecution( true );
 		} else {
-			System.out.println( "Please select execution option." );
-			formatter.printHelp( "utility-name" , options );
+			Preferences.setForExecution( false );
 		}
 
+		try {
+
+			if ( cmd.hasOption( "help" ) ) {
+				formatter.printHelp( "utility-name" , options );
+			} else if ( cmd.hasOption( "analyze" ) ) {
+
+				AnalyzeOutput.analyzeBatch( );
+
+			} else if ( cmd.hasOption( "translate" ) ) {
+
+				BPEL2BIP_Batch.translateAllProjectsInFile( );
+
+			} else {
+				System.out.println( "Please select execution option." );
+				formatter.printHelp( "utility-name" , options );
+			}
+
+		} catch ( Exception e ) {
+			e.printStackTrace( );
+		}
+	}
+
+
+	
+	private void addCommandOption(Options options, String title, String desc, boolean isRequired){
+		Option goal = new Option( title , desc );
+		goal.setRequired( isRequired );
+		options.addOption( goal );
+	}
+	
+	private void addCommandWithArgsOption(Options options, String title, String desc, boolean isRequired, int num){
+		Option goal = new Option( title , desc );
+		goal.setRequired( isRequired );
+		goal.setArgs( num );
+		options.addOption( goal );
 	}
 
 }

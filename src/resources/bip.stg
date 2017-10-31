@@ -58,7 +58,7 @@ header_BIP(name, debug)::=<<
 package $name$
 
 const data int COUNT_MAX = 2
-const data int DEBUG = $debug$
+const data int DEBUG = 0
 
 const data int OBS_TERM = 1
 const data int OBS_UNREACHABLE_CODE = 1

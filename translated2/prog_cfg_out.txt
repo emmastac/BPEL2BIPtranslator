@@ -1,2 +1,0 @@
-
-/home/mania/svn-repos/BPEL2BIP/bpelHome/bpelPrograms/AmericanAirline_small/AmericanAirline.bpel,6660,/home/mania/svn-repos/BPEL2BIP/translated2/bpelPrograms_AmericanAirline_small_AmericanAirline

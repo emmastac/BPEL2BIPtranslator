@@ -1,5 +1,6 @@
 #include<set>
 #include <string>
+#include<ostream>
 
 long bool_sizeof(const bool& q);
 void bool_unmarshalling(bool* t, const char* c);
@@ -15,7 +16,7 @@ void updateVar(int& to, int& from...);
 void open_msg_file(int);
 
 
-
+/*
 class CorrelationSet {
     string name;
     int initialize;
@@ -25,7 +26,8 @@ class CorrelationSet {
 //    int getInitialize (void);
 }
 
+
 void CS_setValues(CorrelationSet&,string,int);
 int CS_getInitialize(CorrelationSet);
 string CS_getName(CorrelationSet);
-
+*/

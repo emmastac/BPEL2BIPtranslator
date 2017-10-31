@@ -3,14 +3,9 @@ package translator;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -25,13 +20,11 @@ import java.util.List;
 
 import javax.xml.namespace.QName;
 
-import main.Preferences;
 import observers.BIPPropertyObserver;
 import observers.DeadlockObserver;
 import observers.MessageObserverIn;
 import observers.MessageObserverOut;
 
-import org.apache.commons.io.FileUtils;
 import org.w3c.dom.Attr;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -39,10 +32,10 @@ import org.w3c.dom.NamedNodeMap;
 
 import stUtils.MapKeys;
 import stUtils.MapUtils;
+import bipmodel.BIPHeader;
 import bpelUtils.BPELFile;
 import bpelUtils.NodeName;
 import bpelUtils.WSDLFile;
-import static java.nio.file.StandardCopyOption.*;
 
 public class BPELCompiler {
 
@@ -78,61 +71,15 @@ public class BPELCompiler {
 	}
 
 
-	private void copyFiles( String from , String to ) throws IOException , URISyntaxException {
-
-		// BufferedReader in = resourceReader(from);
-		// BufferedWriter out;
-		// try {
-		// out = new BufferedWriter( new FileWriter( to ) );
-		//
-		// String line = null;
-		// while ( ( line = in.readLine( ) ) != null ) {
-		// out.write( line );
-		// }
-		//
-		// out.close( );
-		// in.close( );
-		//
-		// } catch ( IOException e ) {
-		// // TODO Auto-generated catch block
-		// e.printStackTrace( );
-		// }
-		Path source = Paths.get( System.getProperty( "user.dir" ) + from );
-		Path target = FileSystems.getDefault( ).getPath( to );
-
-		Files.copy( source , target );
-
-	}
+	
 
 
-	private void collectFiles( File parent , File omitFolder , List < File > files , String [ ] extensions ) {
-
-		File [ ] list = parent.listFiles( );
-
-		if ( list == null )
-			return;
-
-		for ( File f : list ) {
-			if ( f.equals( omitFolder ) ) {
-				continue;
-			} else if ( f.isDirectory( ) ) {
-				collectFiles( f.getAbsoluteFile( ) , omitFolder , files , extensions );
-			} else {
-				for ( String ext : extensions ) {
-					if ( f.toString( ).endsWith( "." + ext ) ) {
-						files.add( f.getAbsoluteFile( ) );
-					}
-				}
-			}
-		}
-	}
-
-
-	public void compile( String bpelFileName , boolean withOutput , String sourceProjectsPath , String BIPprojectPath , String BIPprojectName ,
-			int debug , boolean withObservers ) throws Exception {
+	public void compile( String bpelFileName  , boolean withOutput  , String sourceProjectsPath  , String BIPprojectPath  , String BIPprojectName  ,
+			boolean withObservers  ) throws Exception {
 
 		this.withOutput = withOutput;
 		try {
+			
 			bpelFile = new BPELFile( bpelFileName );
 			Document bpelDoc = bpelFile.getDoc( );
 			if ( bpelDoc == null ) {
@@ -204,13 +151,14 @@ public class BPELCompiler {
 
 			tm = new TemplateMaker( new File( bpelFileName ) , this );
 			
+			
 
 			// translation options, hardcoded for now
 			if ( withOutput ) {
 				hppw.write( tm.applyHeaderHPP( ) );
 				cppw.write( tm.applyHeaderCPP( ) );
 
-				bipw.write( tm.applyHeaderBIP( "check" , debug ) );
+				bipw.write( tm.applyHeaderBIP( "check" ) );
 			}
 
 			// configure observers
@@ -328,7 +276,7 @@ public class BPELCompiler {
 
 	private void writeCode( HashMap < String , ArrayList > ret ) {
 
-		String code = ( String ) MapUtils.getMapSingleEntry( ret , MapKeys.BIP_CODE );
+		String code = ( String ) MapUtils.getSingleEntry( ret , MapKeys.BIP_CODE );
 		// fragments.add(res);
 		try {
 			if ( code != null ) {
@@ -337,13 +285,13 @@ public class BPELCompiler {
 				ret.remove( MapKeys.BIP_CODE );
 			}
 
-			code = ( String ) MapUtils.getMapSingleEntry( ret , MapKeys.HPP_CODE );
+			code = ( String ) MapUtils.getSingleEntry( ret , MapKeys.HPP_CODE );
 			if ( code != null ) {
 				hppw.write( code );
 				ret.remove( MapKeys.HPP_CODE );
 			}
 
-			code = ( String ) MapUtils.getMapSingleEntry( ret , MapKeys.CPP_CODE );
+			code = ( String ) MapUtils.getSingleEntry( ret , MapKeys.CPP_CODE );
 			if ( code != null ) {
 				cppw.write( code );
 				ret.remove( MapKeys.CPP_CODE );
@@ -479,7 +427,7 @@ public class BPELCompiler {
 			return stack;
 		case PROCESS :
 
-			tm.tmplInst.addInstance( "e0b0port" );
+			tm.templateList.addInstance( "e0b0port" );
 			// tm.tmplInst.add("e1b0port");
 
 			String targetNspace = ( el.hasAttribute( "targetNamespace" ) ) ? el.getAttribute( "targetNamespace" ) : "";
@@ -533,7 +481,7 @@ public class BPELCompiler {
 
 			// add loops counterName (if any) at the scope's variables list
 
-			String counterName = ( String ) MapUtils.getMapSingleEntry( stack.peek( ) , MapKeys.COUNTER_NAME );
+			String counterName = ( String ) MapUtils.getSingleEntry( stack.peek( ) , MapKeys.COUNTER_NAME );
 			if ( counterName != null ) {
 				var2parts.put( counterName , new ArrayList( 0 ) );
 			}
@@ -609,8 +557,8 @@ public class BPELCompiler {
 				hm.put( MapKeys.EXIT_ON_STANDARD_FAULT , al );
 			}
 
-			String templateId = String.valueOf( tm.tmplInst.getSize( ) + 1 );
-			tm.tmplInst.addInstance( templateId );
+			String templateId = String.valueOf( TemplateMaker.templateList.getSize( ) + 1 );
+			TemplateMaker.templateList.addInstance( templateId );
 			// add the declared attributes (or default)
 			ArrayList aList = new ArrayList < Object >( 1 );
 			aList.add( templateId );
@@ -882,6 +830,38 @@ public class BPELCompiler {
 			}
 		}
 		return ret;
+	}
+	
+	private void copyFiles( String from , String to ) throws IOException , URISyntaxException {
+
+		Path source = Paths.get( System.getProperty( "user.dir" ) + from );
+		Path target = FileSystems.getDefault( ).getPath( to );
+
+		Files.copy( source , target );
+
+	}
+
+
+	private void collectFiles( File parent , File omitFolder , List < File > files , String [ ] extensions ) {
+
+		File [ ] list = parent.listFiles( );
+
+		if ( list == null )
+			return;
+
+		for ( File f : list ) {
+			if ( f.equals( omitFolder ) ) {
+				continue;
+			} else if ( f.isDirectory( ) ) {
+				collectFiles( f.getAbsoluteFile( ) , omitFolder , files , extensions );
+			} else {
+				for ( String ext : extensions ) {
+					if ( f.toString( ).endsWith( "." + ext ) ) {
+						files.add( f.getAbsoluteFile( ) );
+					}
+				}
+			}
+		}
 	}
 
 }

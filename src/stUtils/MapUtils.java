@@ -10,21 +10,54 @@ import org.antlr.stringtemplate.StringTemplate;
 
 import bpelUtils.NodeName;
 
-
 public class MapUtils {
-	
 
-	public static HashMap < String , ArrayList > addToBIPCode( String s , HashMap < String , ArrayList > ret ) {
+	public static int getScopeOfVariable(  ArrayDeque < HashMap < String , ArrayList >> stack , String variable ){
+		
+		Iterator it = stack.iterator( );
+		int j = stack.size( );
+		// for each scope's order (low scopes -> higher j)
+		HashMap < String , ArrayList > curr;
+		HashMap < String , ArrayList < String >> variables;
+		while ( it.hasNext( ) ) {
+			j--;
+			curr = ( HashMap < String , ArrayList > ) it.next( );
+			// first check in BPEL Variables
+			variables = ( HashMap < String , ArrayList < String >> ) MapUtils.getSingleEntry(
+					curr , MapKeys.VARIABLES );
+			if ( variables == null || variables.get( variable ) == null ) {
+				// then check in BPEL partner links
+				variables = ( HashMap < String , ArrayList < String >> ) MapUtils.getSingleEntry( curr , MapKeys.PARTNER_LINKS );
+				if ( variables == null || variables.get( variable ) == null ) {
+					continue;
+				}
+			}
+			return j;
+		}
+		
+		return -1;
+		
+	}
+	
+	
+	public static HashMap < String , ArrayList > addToBIPCode( HashMap < String , ArrayList > ret , String... entries ) {
 
 		/* add the aggregated bip code at the end of the string */
-		if ( s != null && !s.equals( "" )) {
-			s = '\n'+s;
+		String s = "";
+
+		for ( String entry : entries ) {
+			if ( entry != null ) {
+				s += "\n" + entry;
+			}
+		}
+
+		if ( !s.equals( "" ) ) {
 			if ( ret.get( MapKeys.BIP_CODE ) != null && ret.get( MapKeys.BIP_CODE ).size( ) > 0 ) {
 				String tail = ( String ) ret.get( MapKeys.BIP_CODE ).remove( 0 );
 				ret.get( MapKeys.BIP_CODE ).add( tail + s );
 			} else {
 				ret.put( MapKeys.BIP_CODE , new ArrayList < Object >( 1 ) );
-				ret.get( MapKeys.BIP_CODE ).add(  s );
+				ret.get( MapKeys.BIP_CODE ).add( s );
 			}
 		}
 		return ret;
@@ -34,7 +67,7 @@ public class MapUtils {
 	public static HashMap < String , ArrayList > addToCPPCode( String s , HashMap < String , ArrayList > ret ) {
 
 		/* add the aggregated bip code at the end of the string */
-		if ( s != null && !s.equals( "" )) {
+		if ( s != null && !s.equals( "" ) ) {
 			if ( ret.get( MapKeys.CPP_CODE ) != null && ret.get( MapKeys.CPP_CODE ).size( ) > 0 ) {
 				String tail = ( String ) ret.get( MapKeys.CPP_CODE ).remove( 0 );
 				ret.get( MapKeys.CPP_CODE ).add( tail + s );
@@ -51,7 +84,7 @@ public class MapUtils {
 	public static HashMap < String , ArrayList > addToHPPCode( String s , HashMap < String , ArrayList > ret ) {
 
 		/* add the aggregated bip code at the end of the string */
-		if ( s != null && !s.equals( "" )) {
+		if ( s != null && !s.equals( "" ) ) {
 			if ( ret.get( MapKeys.HPP_CODE ) != null && ret.get( MapKeys.HPP_CODE ).size( ) > 0 ) {
 				String tail = ( String ) ret.get( MapKeys.HPP_CODE ).remove( 0 );
 				ret.get( MapKeys.HPP_CODE ).add( tail + s );
@@ -62,15 +95,20 @@ public class MapUtils {
 		}
 		return ret;
 	}
-	
-	public static void addToMapEntry( HashMap < String , ArrayList > map , String entryKey , Object newEntryItem) {
+
+
+	public static void addToMapEntry( HashMap < String , ArrayList > map , String entryKey , Object... entries ) {
+
 		if ( !map.containsKey( entryKey ) ) {
 			map.put( entryKey , new ArrayList < Object >( ) );
 		}
-		map.get( entryKey ).add( newEntryItem );
+		for ( Object obj : entries ) {
+			map.get( entryKey ).add( obj );
+		}
 	}
-	
-	public static Object getMapSingleEntry( HashMap < String , ArrayList > map , String entryKey ) {
+
+
+	public static Object getSingleEntry( HashMap < String , ArrayList > map , String entryKey ) {
 
 		ArrayList < Object > tmp;
 		if ( ( tmp = ( ArrayList < Object > ) map.get( entryKey ) ) == null || tmp.size( ) == 0 ) {
@@ -79,29 +117,33 @@ public class MapUtils {
 		return ( Object ) tmp.get( 0 );
 
 	}
+
+
 	/**
 	 * Read TAG in a hashMap (i.e. searches in one stack entry).
+	 * 
 	 * @param vars
 	 * @return
 	 */
-	public static NodeName readTag( HashMap < String , ArrayList > vars  ) {
+	public static NodeName readTag( HashMap < String , ArrayList > vars ) {
+
 		// tag -> ArrayList(ArrayList(1))
-		ArrayList wrapper = ( ArrayList ) MapUtils.getMapSingleEntry( vars , MapKeys.TAG );
+		ArrayList wrapper = ( ArrayList ) MapUtils.getSingleEntry( vars , MapKeys.TAG );
 		NodeName tagName = null;
-		if ( wrapper==null || ( tagName = (NodeName) wrapper.get( 0 ) ) == null ) {
+		if ( wrapper == null || ( tagName = ( NodeName ) wrapper.get( 0 ) ) == null ) {
 			return null;
 		}
 		return tagName;
 
 	}
-	
+
 
 	public static ArrayList < String > getVariableParts( ArrayDeque < HashMap < String , ArrayList >> stack , String varName ) {
 
 		Iterator it = stack.iterator( );
 		while ( it.hasNext( ) ) {
 			HashMap < String , ArrayList > vars = ( HashMap < String , ArrayList > ) it.next( );
-			HashMap < String , ArrayList < String >> variables = ( HashMap < String , ArrayList < String >> ) MapUtils.getMapSingleEntry( vars ,
+			HashMap < String , ArrayList < String >> variables = ( HashMap < String , ArrayList < String >> ) MapUtils.getSingleEntry( vars ,
 					MapKeys.VARIABLES );
 			ArrayList < String > parts;
 			if ( variables != null && ( parts = variables.get( varName ) ) != null ) {
@@ -113,6 +155,7 @@ public class MapUtils {
 		}
 		return new ArrayList < String >( 0 );
 	}
+
 
 	/**
 	 * Applies a template which creates a component wrapping various fault
@@ -154,13 +197,14 @@ public class MapUtils {
 		}
 	}
 
+
 	public static String getSuppressJoinFailure( ArrayDeque < HashMap < String , ArrayList >> stack ) {
 
 		Iterator it = stack.iterator( );
 		while ( it.hasNext( ) ) {
 			HashMap < String , ArrayList > vars = ( HashMap < String , ArrayList > ) it.next( );
 
-			String suppressJoinFailure = ( String ) MapUtils.getMapSingleEntry( vars , "suppressJoinFailure" );
+			String suppressJoinFailure = ( String ) MapUtils.getSingleEntry( vars , "suppressJoinFailure" );
 			if ( suppressJoinFailure != null ) {
 				return ( suppressJoinFailure.equals( "yes" ) ) ? "true" : "false";
 			}
@@ -168,7 +212,8 @@ public class MapUtils {
 		// default value for suppressJoinFailure is no
 		return "false";
 	}
-	
+
+
 	public static String getComponentIndex( HashMap < String , ArrayList > vars , StringTemplate template , Integer p ) {
 
 		if ( template.getName( ).startsWith( "SCOPE" ) || template.getName( ).startsWith( "PROC" ) ) {
@@ -177,11 +222,11 @@ public class MapUtils {
 			return String.valueOf( p + 1 );
 		}
 	}
-	
+
+
 	public static String getScopeRole( ArrayList childrenTag , int i ) {
 
 		return ( String ) ( ( ArrayList < String > ) childrenTag.get( i ) ).get( 0 );
 	}
-	
 
 }

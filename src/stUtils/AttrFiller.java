@@ -18,15 +18,22 @@ import translator.BPELCompiler;
 
 public class AttrFiller {
 
-	public void addMapToTemplate( StringTemplate template , Map map , String attr ) {
+	public static void addMapToTemplate( StringTemplate template , Map map , String attr ) {
 
 		ArrayList al = new ArrayList( 1 );
 		al.add( map );
 		template.setAttribute( attr , al );
 	}
+	
+	public static void addEnumerationToTemplate( StringTemplate template , String attribute , int start , int end ) {
+
+		for ( int i = start ; i <= end ; i++ ) {
+			template.setAttribute( attribute , i );
+		}
+	}
 
 
-	public static StringTemplate addEnumAndPWsetToTemplate( StringTemplate template , String attribute , int start , int end ) {
+	public static void addEnumAndPWsetToTemplate( StringTemplate template , String attribute , int start , int end ) {
 
 		// template = addEnumerationToTemplate(template, "intList", 1, intN);
 		Set < Integer > p = new HashSet < Integer >( end - start + 1 );
@@ -47,7 +54,6 @@ public class AttrFiller {
 			}
 		}
 		template.setAttribute( "portSets" , al );
-		return template;
 	}
 
 

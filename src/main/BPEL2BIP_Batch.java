@@ -13,14 +13,14 @@ import translator.BPELTransformer;
 
 public class BPEL2BIP_Batch {
 
-	public static String BIP_PROJECTS_PATH = Preferences.getBIPprojectsPath();
-	public static String BPEL_PROJECTS_PATH = Preferences.getBPELprojectsPath();
-	
-	public static int DEBUG = 0;
-	public static boolean PerformanceExperiment = true;
-	
-	public static String filename = Preferences.getBPELprojectsCfgPath();
-	public static String outname = Preferences.getBIPprojectsCfgPath();
+//	public static String BIP_PROJECTS_PATH = Preferences.getBIPprojectsPath();
+//	public static String BPEL_PROJECTS_PATH = Preferences.getBPELprojectsPath();
+//	
+//	public static int DEBUG = 0;
+//	public static boolean PerformanceExperiment = true;
+//	
+//	public static String filename = Preferences.getBPELprojectsCfgPath();
+//	public static String outname = Preferences.getBIPprojectsCfgPath();
 	
 
 //	public static void main( String [ ] args ) throws Exception {
@@ -31,6 +31,11 @@ public class BPEL2BIP_Batch {
 
 	
 	public static void translateAllProjectsInFile( ) throws Exception {
+		
+		String filename = Preferences.getBPELprojectsCfgPath();
+		String outname = Preferences.getBIPprojectsCfgPath();
+		String BIP_PROJECTS_PATH = Preferences.getBIPprojectsPath();
+		String BPEL_PROJECTS_PATH = Preferences.getBPELprojectsPath();
 
 		if( !Files.exists( Paths.get( filename ) )) {
 			System.out.println("Please provide a BPEL projects' configuration file, as"+filename+" doesn't exist.");
@@ -60,7 +65,7 @@ public class BPEL2BIP_Batch {
 		
 		
 
-		BPELTransformer bpel2bip = new BPELTransformer( PerformanceExperiment , DEBUG, !Preferences.isForExecution(), bw );
+		BPELTransformer bpel2bip = new BPELTransformer( !Preferences.isForExecution() , bw );
 		bpel2bip.transformBatchProjects( BIP_PROJECTS_PATH , BPEL_PROJECTS_PATH , projectPaths , -1 , -1 );
 		
 		bw.close( );
@@ -73,7 +78,7 @@ public class BPEL2BIP_Batch {
 		BufferedWriter bw = new BufferedWriter( new FileWriter( new File( bipFile ) ) );
 		
 		
-		BPELTransformer bpel2bip = new BPELTransformer( PerformanceExperiment , DEBUG, !Preferences.isForExecution(), bw );
+		BPELTransformer bpel2bip = new BPELTransformer( !Preferences.isForExecution() , bw );
 		bpel2bip.transformFile( new File(bpelFile) , "" , bipFile );
 		
 		bw.close( );

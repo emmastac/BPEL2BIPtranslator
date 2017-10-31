@@ -24,7 +24,7 @@ public class BPEL2BIP_TranslateSingle {
 
 	public static void singleTranslateMain( ) throws Exception {
 
-		BPELTransformer bpel2bip = new BPELTransformer( PerformanceExperiment , DEBUG, true, null );
+		BPELTransformer bpel2bip = new BPELTransformer( true , null );
 		bpel2bip.transformFile( new File( BPELsingleProjectsPath ) , BPELsourceProjectsPath , BIP_PROJECTS_PATH );
 	}
 

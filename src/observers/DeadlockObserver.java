@@ -53,7 +53,7 @@ public class DeadlockObserver extends BIPPropertyObserver {
 			throws Exception {
 
 		StringTemplate template = AttrFiller.getTemplate( templateFile , "OBSERVER" );
-		template.setAttribute( "compName" , MapUtils.getMapSingleEntry( ret , MapKeys.CHILD_COMP ) );
+		template.setAttribute( "compName" , MapUtils.getSingleEntry( ret , MapKeys.CHILD_COMP ) );
 
 		String childComp = AttrFiller.getTemplate(templateFile , "compound_name" ).toString( );
 		ret.get( MapKeys.CHILD_COMP ).remove( 0 );
@@ -69,7 +69,7 @@ public class DeadlockObserver extends BIPPropertyObserver {
 			}
 			ArrayList < String > toTemplate = msgPort.toArray4Template( "sndMsgPorts" );
 			AttrFiller.addToTemplate( toTemplate , template , "obsSnd" );
-			ret = MapUtils.addToBIPCode( tm.applyAAS( new int [ ] { 1 } , true ) , ret );
+			ret = MapUtils.addToBIPCode( ret , tm.applyAAS( new int [ ] { 1 } , true ) );
 		}
 
 		for ( IOMsgPort msgPort : ( ArrayList < IOMsgPort > ) ret.get( MapKeys.RCV_MESSAGE_PORTS ) ) {
@@ -79,10 +79,10 @@ public class DeadlockObserver extends BIPPropertyObserver {
 
 			ArrayList < String > toTemplate = msgPort.toArray4Template( "rcvMsgPorts" );
 			AttrFiller.addToTemplate( toTemplate , template , "obsRcv" );
-			ret = MapUtils.addToBIPCode( tm.applyCPEB( 1 , 0 , false ) , ret );
+			ret = MapUtils.addToBIPCode( ret , tm.applyCPEB( 1 , 0 , false ) );
 		}
 
-		MapUtils.addToBIPCode( template.toString( ) , ret );
+		MapUtils.addToBIPCode( ret , template.toString( ) );
 		return;
 	}
 

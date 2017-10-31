@@ -58,7 +58,7 @@ header_BIP(name, debug)::=<<
 package $name$
 
 const data int COUNT_MAX = 2
-const data int DEBUG = $debug$
+const data int DEBUG = 0
 
 const data int OBS_TERM = 1
 const data int OBS_UNREACHABLE_CODE = 1
@@ -67,7 +67,6 @@ const data int OBS_INCOMPL_ASYN = 1
 //extern data type bool
 
 extern function updateVar(int,int)
-extern function updateVar(int,int)
 extern function rdvar_down_1( int ,int )
 extern function rdvar_down_2( int ,int, int, int )
 extern function printf(string)
@@ -75,6 +74,7 @@ extern function printf(string, int)
 extern function printf(string, int, int)
 extern function printf(string, int, int, int)
 extern function printf(string, int, int, int, int)
+extern function open_msg_file(int)
 
 
 port type $ebport()$()
@@ -866,7 +866,7 @@ connector type CHKRC5$connName$(
 			else
 				$fltList:{ ima.msg$it$=msg$it$; }$
 			fi
-		cout<< '\n' << d.msg1 <<" ,"<< msg1 <<" ," << msg2 <<" ," << msg3 << '\n';
+		
 			
 	}
 end
@@ -1873,10 +1873,8 @@ STD_TRANS( noAllow, deadcode )::=<<
 >>
 
 
-RECEIVE( id, varsWPorts, plop, initiateList, isRcvIO, joinFault, createInstance) ::= <<
+RECEIVE( id, varsWPorts, plop, initiateList, isRcvIO, createInstance) ::= <<
 //initiateList : initiateValue1,...initiateValueN, N
-//initiateValue = 0 (if no), 1 (if yes),  2 (if join)
-//joinFault = true, if some initiateValue is join	
 atom type receive_$id$()
 
 	 $basic_data()$, inMsg $rest(varsWPorts):{, $it$}$ $trunc(initiateList):{, initiate$i$}$
@@ -1965,7 +1963,8 @@ place $STD_PLACES()$, CHKD, CHK,PREFAULT, PREOPEN, PRETERM, DONE2, RCV, WAIT, PR
 	$if(isRcvIO)$ 
 		on openIMA_receive_$id$ from PREOPEN to PRETERM 
 	$else$ 
-		internal from PREOPEN to PRETERM$endif$
+		internal from PREOPEN to PRETERM
+	$endif$
 		on interrupt from PREOPEN to FIN
 	
 	on term_receive_$id$ from PRETERM to DONE2 
@@ -2427,19 +2426,18 @@ export port $comp$$id$C1.done as done
 >>
 
 
-ASSIGN( id, childComp, expWPorts, count, ports) ::= <<
+ASSIGN( id, childComp, expWPorts, count, ports, singleCopy ) ::= <<
 
 
 compound type assign_$id$()
 	$childComp:{component $it$ CP$id$C$i$()};separator="\n"$
 	component empty_assign CNTRL($id$)
 	
-	$if(count)$ 	$ParallelPorts(comp="CP", id=id, count=count, childComp=childComp, sync_controller="CNTRL")$ 
-	$else$ 			$STDSCompSinglePorts(comp="CP", id=id, noReverse=1, sync_controller="CNTRL")$ 
-	$endif$
+	$if(singleCopy)$ $STDSCompSinglePorts(comp="CP", id=id, noReverse=1, sync_controller="CNTRL")$ 
+	$else$ 	$ParallelPorts(comp="CP", id=id, count=count, childComp=childComp, sync_controller="CNTRL")$ 	$endif$
 
 	$MSGACT(comp="CP",id=id, ports=ports)$
-	connector AASD$expWPorts:{$first(rest(rest(it)))$};separator="o"$ write_assign_$id$_in($childComp:{CP$id$C$i$.write_$it$};separator=","$)
+	connector AASD$expWPorts:{$first(rest(it))$};separator="o"$ write_assign_$id$_in($childComp:{CP$id$C$i$.write_$it$};separator=","$)
 	//*******	
 	$STDSCompMultiPortsExp(comp="CP", id=id, childComp=childComp, sync_controller="CNTRL")$
 	$MSGACTEXP(comp="CP",id=id, ports=ports)$

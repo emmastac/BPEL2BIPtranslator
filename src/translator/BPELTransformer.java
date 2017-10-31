@@ -11,16 +11,12 @@ public class BPELTransformer {
 
 	public int NEW = 0;
 
-	private boolean performanceExperiment;
-	private int debug;
 	private boolean withObservers;
 	private BufferedWriter bw;
 
 
-	public BPELTransformer( boolean PerformanceExperiment , int debug , boolean withObservers , BufferedWriter logExperOutput ) {
+	public BPELTransformer( boolean withObservers  , BufferedWriter logExperOutput  ) {
 
-		this.performanceExperiment = PerformanceExperiment;
-		this.debug = debug;
 		this.withObservers = withObservers;
 		this.bw = logExperOutput;
 	}
@@ -138,16 +134,10 @@ public class BPELTransformer {
 		BPELCompiler bpelCompiler = new BPELCompiler( );
 		BPELCompiler.NEW = NEW;
 
-		if ( performanceExperiment ) {
-			start = getCpuTime( );
-		}
+		
 		bpelCompiler.compile( sourceProgramFile.getAbsolutePath( ) , true , sourceHome , targetProjectPath , targetProjectPath ,
-				debug , withObservers );
-		if ( performanceExperiment ) {
-			end = getCpuTime( );
-
-			bw.write( '\n'+sourceProgramFile.getPath()+","+ (end - start) +","+targetProjectPath );
-		}
+				withObservers );
+		
 		System.out.println( sourceProgramFile + ": ended" + '\n' );
 	}
 

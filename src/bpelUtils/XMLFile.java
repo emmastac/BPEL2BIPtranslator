@@ -73,9 +73,15 @@ public class XMLFile {
 //		return al;
 //	}
 
-	public  static ArrayList < Element > getChildrenInWrapper( Element startElement , String wrapper , String children ) throws XPathExpressionException{
+	public  static ArrayList < Element > getChildrenInWrapper( Element startElement , String wrapper , String children ){
 		String expression =  "./*[local-name()='"+wrapper+"']/*[local-name()='"+children+"']";
-		return getNodesByXpath(  startElement ,  expression ) ;
+		try {
+			return getNodesByXpath(  startElement ,  expression ) ;
+		} catch ( XPathExpressionException e ) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return new ArrayList<>();
 	}
 	
 	public static ArrayList < Element >  getNodesByXpath( Element startElement , String expression ) throws XPathExpressionException {

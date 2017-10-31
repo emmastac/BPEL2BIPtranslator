@@ -103,7 +103,7 @@ public class WSDLFile extends XMLFile {
 	}
 
 
-	public boolean getOperationsOutput( String portType , String operationName ) {
+	public boolean operationHasOutput( String portType , String operationName ) {
 		if(portType.contains(":")){
 			portType = portType.split( ":" )[1];
 		}

@@ -1,11 +1,8 @@
 package bipUtils;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 
-import org.antlr.stringtemplate.StringTemplate;
-
-import translator.TemplateMaker;
+import bipmodel.BIPtemplate;
 
 
 public abstract class Port implements Cloneable{

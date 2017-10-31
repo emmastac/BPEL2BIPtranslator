@@ -70,10 +70,10 @@ public class ExpressionParsingUtils {
 		Iterator it = stack.iterator( );
 		while ( it.hasNext( ) ) {
 			HashMap < String , ArrayList > vars = ( HashMap < String , ArrayList > ) it.next( );
-			HashMap < String , ArrayList < String >> variables = ( HashMap < String , ArrayList < String >> ) MapUtils.getMapSingleEntry( vars ,
+			HashMap < String , ArrayList < String >> variables = ( HashMap < String , ArrayList < String >> ) MapUtils.getSingleEntry( vars ,
 					MapKeys.VARIABLES );
 			parseExpressionPerStackEntry( variables, expression_text, parts, stack);
-			HashMap < String , ArrayList < String >> partnerLinks = ( HashMap < String , ArrayList < String >> ) MapUtils.getMapSingleEntry( vars ,
+			HashMap < String , ArrayList < String >> partnerLinks = ( HashMap < String , ArrayList < String >> ) MapUtils.getSingleEntry( vars ,
 					MapKeys.PARTNER_LINKS );
 			parseExpressionPerStackEntry( partnerLinks, expression_text, parts, stack);
 		}
